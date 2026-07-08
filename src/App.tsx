@@ -1,9 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from './services/supabase';
 import Welcome from './views/Welcome';
+import Dashboard from './views/Dashboard';
 import './App.css';
 
 function App() {
+  // 1. Estado de la Sesión con tipado oficial de Supabase
+  const [session, setSession] = useState<Session | null>(null);
   const [currentView, setCurrentView] = useState<string>('welcome');
+
+  // 2. Suscripción de Auth al montar la aplicación
+  useEffect(() => {
+    // Obtener la sesión actual inicialmente
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+    });
+
+    // Escuchar cambios de estado en la sesión
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+    });
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const handleNavigate = (view: string) => {
     setCurrentView(view);
@@ -71,14 +94,27 @@ function App() {
     </div>
   );
 
+  // 3. Renderizado Condicional de Vistas según presencia de la sesión
   return (
     <main>
-      {currentView === 'welcome' && <Welcome onNavigate={handleNavigate} />}
-      {currentView === 'wallet' && renderPlaceholder('Billetera (Wallet)', '6, 182, 212')}
-      {currentView === 'p2p' && renderPlaceholder('Comercio P2P', '16, 185, 129')}
-      {currentView === 'admin' && renderPlaceholder('Panel de Administración', '239, 68, 68')}
-      {currentView === 'login' && renderPlaceholder('Iniciar Sesión (Login)', '168, 85, 247')}
-      {currentView === 'invitado' && renderPlaceholder('Acceso de Invitado', '245, 158, 11')}
+      {session ? (
+        <>
+          {currentView === 'welcome' && <Dashboard session={session} onNavigate={handleNavigate} />}
+          {currentView === 'wallet' && renderPlaceholder('Billetera (Wallet)', '6, 182, 212')}
+          {currentView === 'p2p' && renderPlaceholder('Comercio P2P', '16, 185, 129')}
+          {currentView === 'admin' && renderPlaceholder('Panel de Administración', '239, 68, 68')}
+          {(currentView === 'login' || currentView === 'invitado') && <Dashboard session={session} onNavigate={handleNavigate} />}
+        </>
+      ) : (
+        <>
+          {currentView === 'welcome' && <Welcome onNavigate={handleNavigate} />}
+          {currentView === 'wallet' && renderPlaceholder('Billetera (Wallet)', '6, 182, 212')}
+          {currentView === 'p2p' && renderPlaceholder('Comercio P2P', '16, 185, 129')}
+          {currentView === 'admin' && renderPlaceholder('Panel de Administración', '239, 68, 68')}
+          {currentView === 'login' && renderPlaceholder('Iniciar Sesión (Login)', '168, 85, 247')}
+          {currentView === 'invitado' && renderPlaceholder('Acceso de Invitado', '245, 158, 11')}
+        </>
+      )}
     </main>
   );
 }
