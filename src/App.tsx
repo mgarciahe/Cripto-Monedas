@@ -3,6 +3,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
 import Welcome from './views/Welcome';
 import Dashboard from './views/Dashboard';
+import MercadoP2P from './views/MercadoP2P';
+import Login from './views/Login';
 import './App.css';
 
 function App() {
@@ -101,9 +103,9 @@ function App() {
         <>
           {currentView === 'welcome' && <Dashboard session={session} onNavigate={handleNavigate} />}
           {currentView === 'wallet' && renderPlaceholder('Billetera (Wallet)', '6, 182, 212')}
-          {currentView === 'p2p' && renderPlaceholder('Comercio P2P', '16, 185, 129')}
+          {currentView === 'p2p' && <MercadoP2P session={session} onNavigate={handleNavigate} />}
           {currentView === 'admin' && renderPlaceholder('Panel de Administración', '239, 68, 68')}
-          {(currentView === 'login' || currentView === 'invitado') && <Dashboard session={session} onNavigate={handleNavigate} />}
+          {(currentView === 'login' || currentView === 'register' || currentView === 'invitado') && <Dashboard session={session} onNavigate={handleNavigate} />}
         </>
       ) : (
         <>
@@ -111,7 +113,8 @@ function App() {
           {currentView === 'wallet' && renderPlaceholder('Billetera (Wallet)', '6, 182, 212')}
           {currentView === 'p2p' && renderPlaceholder('Comercio P2P', '16, 185, 129')}
           {currentView === 'admin' && renderPlaceholder('Panel de Administración', '239, 68, 68')}
-          {currentView === 'login' && renderPlaceholder('Iniciar Sesión (Login)', '168, 85, 247')}
+          {currentView === 'login' && <Login onNavigate={handleNavigate} initialRegisterMode={false} />}
+          {currentView === 'register' && <Login onNavigate={handleNavigate} initialRegisterMode={true} />}
           {currentView === 'invitado' && renderPlaceholder('Acceso de Invitado', '245, 158, 11')}
         </>
       )}

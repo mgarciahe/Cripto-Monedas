@@ -25,6 +25,7 @@ export interface Billetera {
 
 /**
  * Obtiene los balances de la billetera de un usuario específico desde la tabla 'billeteras'.
+ * Realiza una traducción segura desde las columnas físicas (saldo_*) hacia las propiedades de frontend (balance_*).
  */
 export async function getWalletBalances(userId: string): Promise<Billetera | null> {
   const { data, error } = await supabase
@@ -37,5 +38,14 @@ export async function getWalletBalances(userId: string): Promise<Billetera | nul
     throw error;
   }
 
-  return data;
+  if (!data) return null;
+
+  // Mapear las columnas físicas de Supabase (saldo_usd, etc.) al modelo de datos del cliente (balance_usd, etc.)
+  return {
+    usuario_id: data.usuario_id,
+    balance_usd: Number(data.saldo_usd ?? 0),
+    balance_btc: Number(data.saldo_btc ?? 0),
+    balance_eth: Number(data.saldo_eth ?? 0),
+    balance_sol: Number(data.saldo_sol ?? 0),
+  };
 }

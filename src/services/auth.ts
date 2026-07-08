@@ -9,7 +9,48 @@ export async function signInWithGoogle() {
     provider: 'google',
     options: {
       redirectTo: window.location.origin,
+      queryParams: {
+        prompt: 'select_account',
+      },
     },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Registra un nuevo usuario con correo electrónico, contraseña y metadatos adicionales en Supabase.
+ */
+export async function signUpWithEmail(email: string, pass: string, fullName?: string, avatarUrl?: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: pass,
+    options: {
+      data: {
+        full_name: fullName || 'Usuario AetherWallet',
+        avatar_url: avatarUrl || '',
+      }
+    }
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+/**
+ * Inicia sesión con correo electrónico y contraseña en Supabase.
+ */
+export async function signInWithEmail(email: string, pass: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password: pass,
   });
 
   if (error) {

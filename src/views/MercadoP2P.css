@@ -1,0 +1,572 @@
+/* MercadoP2P.css */
+.p2p-container {
+  min-height: 100vh;
+  width: 100%;
+  background-color: #0b0813;
+  color: #f3f4f6;
+  position: relative;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Glow effects */
+.p2p-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sphere-purple {
+  width: 45vw;
+  height: 45vw;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, rgba(138, 43, 226, 0.0) 70%);
+  top: -15vw;
+  right: -10vw;
+}
+
+.sphere-cyan {
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, rgba(0, 242, 254, 0.0) 70%);
+  bottom: -10vw;
+  left: -10vw;
+}
+
+/* Header */
+.p2p-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2.5rem;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-color: rgba(11, 8, 19, 0.5);
+  box-sizing: border-box;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.btn-back-dashboard {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-back-dashboard:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.p2p-title {
+  font-size: 1.5rem;
+  font-weight: 850;
+  margin: 0;
+  letter-spacing: -0.5px;
+  background: linear-gradient(to right, #a855f7, #06b6d4);
+  WebkitBackgroundClip: text;
+  WebkitTextFillColor: transparent;
+}
+
+/* Balance Header Pill - Ampliado y estilizado */
+.p2p-user-balances {
+  display: flex;
+  gap: 1.25rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 14px;
+  font-size: 1.05rem; /* Mucho más grande */
+  font-weight: 700;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(10px);
+}
+
+.balance-pill {
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  letter-spacing: 0.25px;
+}
+
+.balance-pill.usd {
+  color: #22d3ee; /* Color cian */
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+.balance-pill.btc {
+  color: #f59e0b; /* Color naranja */
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.balance-pill.eth {
+  color: #c084fc; /* Color morado */
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.balance-pill.sol {
+  color: #2dd4bf; /* Color verde azulado */
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.2);
+}
+
+/* Content layout */
+.p2p-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2.5rem 2rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.p2p-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.8fr;
+  gap: 2rem;
+  width: 100%;
+}
+
+.p2p-section-title {
+  font-size: 1.25rem;
+  font-weight: 850;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.5px;
+}
+
+.p2p-subtitle {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.4;
+}
+
+/* Glass card styling */
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+/* Alerts */
+.p2p-alert {
+  padding: 0.85rem 1.2rem;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  animation: fadeIn 0.25s ease-out;
+  box-sizing: border-box;
+}
+
+.p2p-alert.error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.p2p-alert.success {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #a7f3d0;
+}
+
+/* Form */
+.p2p-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.5px;
+}
+
+.form-input,
+.form-select {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #f3f4f6;
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.form-input::placeholder {
+  color: #6b7280;
+}
+
+.form-input:focus,
+.form-select:focus {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #a855f7;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.15);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.p2p-estimated-total {
+  background: rgba(6, 182, 212, 0.05);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  padding: 0.85rem 1.2rem;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.p2p-estimated-total span {
+  color: #9ca3af;
+}
+
+.p2p-estimated-total strong {
+  color: #22d3ee;
+  font-size: 1.1rem;
+}
+
+.btn-p2p-submit {
+  background: linear-gradient(135deg, #a855f7 0%, #8b5cf6 100%);
+  border: none;
+  color: white;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
+  box-sizing: border-box;
+}
+
+.btn-p2p-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.4);
+}
+
+.btn-p2p-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Orderbook styles */
+.orderbook-container {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.orderbook-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+}
+
+.orderbook-empty p {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.orderbook-empty span {
+  font-size: 0.85rem;
+}
+
+.orderbook-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.orderbook-table th {
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.orderbook-table td {
+  padding: 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.own-offer-row {
+  background: rgba(168, 85, 247, 0.02);
+}
+
+.font-numeric {
+  font-family: monospace;
+  font-weight: 600;
+}
+
+.font-highlight {
+  color: #22d3ee;
+}
+
+.token-badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 0.75rem;
+}
+
+.token-badge.btc {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.token-badge.eth {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.token-badge.sol {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.vendedor-id {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  cursor: help;
+}
+
+/* Buy button */
+.btn-p2p-buy {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.btn-p2p-buy:hover:not(:disabled) {
+  background: #10b981;
+  color: #0b0813;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.btn-p2p-buy.own-offer {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .p2p-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Modal de confirmación P2P */
+.p2p-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(11, 8, 19, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.p2p-modal-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(25, 20, 38, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+@keyframes modalScaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.p2p-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 1rem;
+}
+
+.p2p-modal-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(to right, #22d3ee, #a855f7);
+  WebkitBackgroundClip: text;
+  WebkitTextFillColor: transparent;
+}
+
+.p2p-modal-close-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.p2p-modal-close-btn:hover {
+  color: white;
+}
+
+.p2p-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.p2p-details-list {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.p2p-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.p2p-detail-label {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.p2p-detail-val {
+  color: #f3f4f6;
+  font-weight: 700;
+}
+
+.p2p-detail-val.total {
+  font-size: 1.2rem;
+  color: #22d3ee;
+  font-family: monospace;
+}
+
+.p2p-modal-footer {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.btn-modal-cancel {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+  padding: 0.8rem;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-modal-cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.btn-modal-confirm {
+  flex: 1;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  color: white;
+  padding: 0.8rem;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.btn-modal-confirm:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
