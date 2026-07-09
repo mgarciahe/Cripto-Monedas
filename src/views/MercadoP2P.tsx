@@ -67,7 +67,7 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
   const user = session.user;
   const userMetadata = user.user_metadata;
   const avatarUrl = userMetadata?.avatar_url || '';
-  const fullName = userMetadata?.full_name || 'Usuario AetherWallet';
+  const fullName = userMetadata?.full_name || 'Usuario';
   const email = user.email || 'correo@ejemplo.com';
 
   const handleLogoutClick = async () => {
@@ -581,7 +581,7 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
           </section>
 
           <footer className="dashboard-footer">
-            <p>© 2026 AetherWallet. Mercado Financiero Seguro P2P.</p>
+            <p>© 2026 Mi Billetera Virtual. Mercado Financiero Seguro P2P.</p>
           </footer>
         </main>
       </div>

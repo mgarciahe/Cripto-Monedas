@@ -31,7 +31,7 @@ export async function signUpWithEmail(email: string, pass: string, fullName?: st
     password: pass,
     options: {
       data: {
-        full_name: fullName || 'Usuario AetherWallet',
+        full_name: fullName || 'Usuario',
         avatar_url: avatarUrl || '',
       }
     }

@@ -28,6 +28,15 @@ export interface Billetera {
  * Realiza una traducción segura desde las columnas físicas (saldo_*) hacia las propiedades de frontend (balance_*).
  */
 export async function getWalletBalances(userId: string): Promise<Billetera | null> {
+  if (userId === 'guest-user-id') {
+    return {
+      usuario_id: 'guest-user-id',
+      balance_usd: 11087.00,
+      balance_btc: 0.125,
+      balance_eth: 1.45,
+      balance_sol: 18.2,
+    };
+  }
   const { data, error } = await supabase
     .from('billeteras')
     .select('*')

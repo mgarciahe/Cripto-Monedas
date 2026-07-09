@@ -340,6 +340,44 @@ export interface Movimiento {
  * Obtiene el historial de movimientos de la billetera del usuario.
  */
 export async function getTransactionHistory(userId: string): Promise<{ success: boolean; message: string; data?: Movimiento[] }> {
+  if (userId === 'guest-user-id') {
+    return {
+      success: true,
+      message: 'Historial de transacciones obtenido con éxito.',
+      data: [
+        {
+          id: 'mock-tx-1',
+          usuario_id: 'guest-user-id',
+          tipo: 'deposito',
+          monto_usd: 10000.00,
+          cantidad_cripto: 0,
+          moneda: 'USD',
+          detalle: 'Depósito Inicial de Invitado',
+          creado_a: new Date(Date.now() - 86400000 * 2).toISOString()
+        },
+        {
+          id: 'mock-tx-2',
+          usuario_id: 'guest-user-id',
+          tipo: 'compra_directa',
+          monto_usd: 1500.00,
+          cantidad_cripto: 0.024,
+          moneda: 'BTC',
+          detalle: 'Compra de BTC',
+          creado_a: new Date(Date.now() - 86400000).toISOString()
+        },
+        {
+          id: 'mock-tx-3',
+          usuario_id: 'guest-user-id',
+          tipo: 'transferencia_recibida',
+          monto_usd: 2587.00,
+          cantidad_cripto: 0,
+          moneda: 'USD',
+          detalle: 'Fondos Recibidos de Sistema',
+          creado_a: new Date(Date.now() - 3600000 * 4).toISOString()
+        }
+      ]
+    };
+  }
   try {
     const { data, error } = await supabase
       .from('movimientos')

@@ -126,7 +126,7 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
             </h2>
             <p className="login-subtitle">
               {isRegisterMode 
-                ? 'Regístrate para comenzar a gestionar tus criptoactivos en AetherWallet' 
+                ? 'Regístrate para comenzar a gestionar tus criptoactivos en Mi Billetera Virtual' 
                 : 'Accede a tus saldos y opera en el mercado P2P'
               }
             </p>

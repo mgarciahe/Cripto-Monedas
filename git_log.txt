@@ -1,0 +1,5 @@
+9cf0e94 (HEAD -> main, origin/main) Pagina funcionando correctamente antes de agregar graficos
+78a845d Funciones de inicio de sesion agregadas
+a02bd8a Funciones basicas agregadas y corriendo
+30919fc Logica Financiera terminada
+67b85ca Estructura de carpetas y creacion pagina inicial

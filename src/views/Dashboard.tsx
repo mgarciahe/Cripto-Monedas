@@ -3,10 +3,11 @@ import type { Session } from '@supabase/supabase-js';
 import { logout } from '../services/auth';
 import { getWalletBalances } from '../services/supabase';
 import type { Billetera } from '../services/supabase';
-import { getCryptoPrices } from '../services/prices';
+import { getCryptoPrices, getCryptoHistory } from '../services/prices';
 import type { PreciosCripto } from '../services/prices';
 import { transferFunds, reloadBalance, buyCrypto, getTransactionHistory } from '../services/wallet';
 import type { Movimiento } from '../services/wallet';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -62,6 +63,12 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [hasNewNotifications, setHasNewNotifications] = useState<boolean>(false);
 
+  // Estados para la gráfica interactiva de rendimiento de mercado
+  const [selectedCrypto, setSelectedCrypto] = useState<'bitcoin' | 'ethereum' | 'solana'>('bitcoin');
+  const [chartData, setChartData] = useState<Array<{ date: string; price: number }>>([]);
+  const [chartLoading, setChartLoading] = useState<boolean>(true);
+  const [chartError, setChartError] = useState<string | null>(null);
+
   // Estados para controlar los modales del Sidebar / Saldo
   const [showReloadModal, setShowReloadModal] = useState<boolean>(false);
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
@@ -71,7 +78,7 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   
   // Extraer datos del perfil de Google de forma segura
   const avatarUrl = userMetadata?.avatar_url || '';
-  const fullName = userMetadata?.full_name || 'Usuario AetherWallet';
+  const fullName = userMetadata?.full_name || 'Usuario';
   const email = user.email || 'correo@ejemplo.com';
 
   // Función reutilizable para consultar balances (soporta recarga en segundo plano)
@@ -161,6 +168,56 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
       clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadHistory = async () => {
+      setChartLoading(true);
+      setChartError(null);
+      try {
+        const rawPrices = await getCryptoHistory(selectedCrypto);
+        if (isMounted) {
+          const formatted = rawPrices.map(([timestamp, price]) => {
+            const dateObj = new Date(timestamp);
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const hours = String(dateObj.getHours()).padStart(2, '0');
+            const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+            return {
+              date: `${day}/${month} ${hours}:${minutes}`,
+              simpleDate: `${day}/${month}`,
+              price: price
+            };
+          });
+
+          // Filtrar a aproximadamente 30 puntos para un rendimiento y visualización impecable
+          const step = Math.max(1, Math.floor(formatted.length / 30));
+          const filtered = formatted.filter((_, idx) => idx % step === 0);
+
+          setChartData(filtered);
+        }
+      } catch (err: unknown) {
+        console.error('Error al cargar historial para gráfica:', err);
+        if (isMounted) {
+          setChartError('No se pudo sincronizar el historial del mercado.');
+        }
+      } finally {
+        if (isMounted) {
+          setChartLoading(false);
+        }
+      }
+    };
+
+    loadHistory();
+    const interval = setInterval(loadHistory, 300000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedCrypto]);
+
 
   const handleReloadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,6 +360,10 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   const handleLogoutClick = async () => {
     try {
       setErrorMsg(null);
+      if (user.id === 'guest-user-id') {
+        onNavigate('welcome');
+        return;
+      }
       await logout();
     } catch (err: unknown) {
       console.error('Error al cerrar sesión:', err);
@@ -310,6 +371,283 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
       setErrorMsg(msg);
     }
   };
+
+  // Helper para obtener configuración visual de colores según cripto seleccionada
+  const getCryptoGradientConfig = () => {
+    switch (selectedCrypto) {
+      case 'bitcoin':
+        return {
+          stroke: '#f59e0b',
+          gradientStart: 'rgba(245, 158, 11, 0.35)',
+          gradientEnd: 'rgba(245, 158, 11, 0)'
+        };
+      case 'ethereum':
+        return {
+          stroke: '#3b82f6',
+          gradientStart: 'rgba(59, 130, 246, 0.35)',
+          gradientEnd: 'rgba(59, 130, 246, 0)'
+        };
+      case 'solana':
+        return {
+          stroke: '#14b8a6',
+          gradientStart: 'rgba(20, 184, 166, 0.35)',
+          gradientEnd: 'rgba(20, 184, 166, 0)'
+        };
+      default:
+        return {
+          stroke: '#22d3ee',
+          gradientStart: 'rgba(34, 211, 238, 0.35)',
+          gradientEnd: 'rgba(34, 211, 238, 0)'
+        };
+    }
+  };
+
+  const { stroke: chartStroke, gradientStart, gradientEnd } = getCryptoGradientConfig();
+
+  // Tooltip personalizado estilizado
+  const CustomChartTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      return (
+        <div style={{
+          background: 'rgba(9, 10, 18, 0.95)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          padding: '0.75rem 1rem',
+          borderRadius: '12px',
+          boxShadow: '0 8px 25px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(10px)'
+        }}>
+          <p style={{ margin: 0, fontSize: '0.75rem', color: '#9ca3af', fontWeight: 600 }}>{dataPoint.date}</p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.95rem', color: '#fff', fontWeight: 800 }}>
+            ${dataPoint.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Formateador para el eje Y de la gráfica
+  const formatYAxisTick = (value: number) => {
+    return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  };
+
+  if (user.id === 'guest-user-id') {
+    return (
+      <div className="dashboard-container-new" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '2rem', boxSizing: 'border-box', background: '#090a12', position: 'relative', overflow: 'hidden' }}>
+        {/* Glow Ambient Effects */}
+        <div className="dash-glow sphere-purple" style={{ top: '-10%', left: '-10%', width: '50vw', height: '50vw', opacity: 0.15 }}></div>
+        <div className="dash-glow sphere-cyan" style={{ bottom: '-10%', right: '-10%', width: '50vw', height: '50vw', opacity: 0.15 }}></div>
+
+        {/* Top Header */}
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', width: '100%', maxWidth: '900px', margin: '0 auto 3rem auto', zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="logo-icon" style={{ background: 'linear-gradient(135deg, #a855f7, #6366f1)', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+            </div>
+            <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
+              Mi Billetera <span style={{ color: '#22d3ee' }}>Virtual</span>
+            </span>
+          </div>
+          
+          <button 
+            onClick={() => onNavigate('welcome')}
+            style={{
+              background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+              border: 'none',
+              color: 'white',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              padding: '0.6rem 1.25rem',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(168, 85, 247, 0.3)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(168, 85, 247, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'none';
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(168, 85, 247, 0.3)';
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Salir
+          </button>
+        </header>
+
+        {/* Content Container */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', width: '100%', maxWidth: '900px', margin: '0 auto', zIndex: 10 }}>
+          {/* Ticker de precios en vivo */}
+          {precios && (
+            <div className="p2p-prices-ticker glass-card" style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '2.5rem',
+              padding: '1.2rem 2rem',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(25, 20, 38, 0.25)',
+              borderRadius: '20px',
+              flexWrap: 'wrap',
+              boxSizing: 'border-box',
+              width: '100%',
+              backdropFilter: 'blur(20px)'
+            }}>
+              <span style={{ fontSize: '0.85rem', color: '#9ca3af', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                Precios en Vivo:
+              </span>
+              <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <span style={{ fontSize: '0.95rem', color: '#f3f4f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#f59e0b', fontSize: '1.2rem' }}>₿</span> Bitcoin (BTC): 
+                  <strong style={{ color: '#fff' }}>${precios.bitcoin.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong>
+                </span>
+                <span style={{ fontSize: '0.95rem', color: '#f3f4f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#a855f7', fontSize: '1.2rem' }}>Ξ</span> Ethereum (ETH): 
+                  <strong style={{ color: '#fff' }}>${precios.ethereum.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong>
+                </span>
+                <span style={{ fontSize: '0.95rem', color: '#f3f4f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#14b8a6', fontSize: '1.2rem' }}>S</span> Solana (SOL): 
+                  <strong style={{ color: '#fff' }}>${precios.solana.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Gráfica de Rendimiento de Mercado */}
+          <div className="market-chart-card glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '2rem', position: 'relative', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: 0 }}>Rendimiento del Mercado</h3>
+                <p style={{ fontSize: '0.85rem', color: '#9ca3af', margin: '4px 0 0 0' }}>Historial de precios de los últimos 7 días</p>
+              </div>
+              {/* Tabs para BTC, ETH, SOL */}
+              <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedCrypto('bitcoin')}
+                  style={{
+                    background: selectedCrypto === 'bitcoin' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
+                    color: selectedCrypto === 'bitcoin' ? '#fff' : '#9ca3af',
+                    border: 'none',
+                    padding: '0.45rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 750,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  BTC
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedCrypto('ethereum')}
+                  style={{
+                    background: selectedCrypto === 'ethereum' ? 'linear-gradient(135deg, #3b82f6 0%, #a855f7 100%)' : 'transparent',
+                    color: selectedCrypto === 'ethereum' ? '#fff' : '#9ca3af',
+                    border: 'none',
+                    padding: '0.45rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 750,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  ETH
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedCrypto('solana')}
+                  style={{
+                    background: selectedCrypto === 'solana' ? 'linear-gradient(135deg, #14b8a6 0%, #a855f7 100%)' : 'transparent',
+                    color: selectedCrypto === 'solana' ? '#fff' : '#9ca3af',
+                    border: 'none',
+                    padding: '0.45rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 750,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  SOL
+                </button>
+              </div>
+            </div>
+
+            {/* Área del Gráfico con Recharts */}
+            <div style={{ width: '100%', height: 320, position: 'relative', marginTop: '1rem' }}>
+              {chartLoading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px' }}>
+                  <div className="spinner" style={{ width: '30px', height: '30px' }}></div>
+                  <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Cargando rendimiento...</span>
+                </div>
+              ) : chartError ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#ef4444', fontSize: '0.85rem' }}>
+                  <span>{chartError}</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="selectedCryptoGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={gradientStart} />
+                        <stop offset="100%" stopColor={gradientEnd} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255, 255, 255, 0.04)" />
+                    <XAxis 
+                      dataKey="simpleDate" 
+                      stroke="#6b7280" 
+                      fontSize={11} 
+                      tickLine={false} 
+                      axisLine={false} 
+                      dy={10}
+                    />
+                    <YAxis 
+                      stroke="#6b7280" 
+                      fontSize={11} 
+                      tickLine={false} 
+                      axisLine={false}
+                      domain={['auto', 'auto']}
+                      tickFormatter={formatYAxisTick}
+                      dx={-5}
+                    />
+                    <Tooltip content={<CustomChartTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="price" 
+                      stroke={chartStroke} 
+                      strokeWidth={2.5} 
+                      fillOpacity={1} 
+                      fill="url(#selectedCryptoGradient)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer style={{ marginTop: 'auto', textAlign: 'center', padding: '2rem 0 1rem 0', fontSize: '0.8rem', color: '#6b7280', zIndex: 10 }}>
+          <p>© 2026 Mi Billetera Virtual. Panel de control financiero seguro para Invitados.</p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-container-new">
@@ -429,97 +767,227 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
 
         {/* 3. GRID OF PREMIUM CARDS */}
         <div className="dashboard-grid-premium">
-          {/* Left Column: Total Balance & Bezier Chart */}
-          <div className="total-balance-card glass-card">
-            <div className="balance-header-row">
-              <div>
-                <span className="balance-label">Saldo Total (USD)</span>
-                <h1 className="balance-value">
-                  ${(billetera?.balance_usd ?? 0.00).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  <span className="balance-currency-label"> USD</span>
-                </h1>
+          {/* Left Column: Total Balance Card & Interactive Chart Card */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', minWidth: 0 }}>
+            {/* Total Balance Card */}
+            <div className="total-balance-card glass-card" style={{ padding: '1.75rem' }}>
+              <div className="balance-header-row">
+                <div>
+                  <span className="balance-label">Saldo Actual (USD)</span>
+                  <h1 className="balance-value">
+                    ${(billetera?.balance_usd ?? 0.00).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="balance-currency-label"> USD</span>
+                  </h1>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontFamily: 'monospace', background: 'rgba(255,255,255,0.02)', padding: '3px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }} title="Dirección UUID de tu billetera">
+                    ID: {user.id}
+                  </span>
+                  <button 
+                    onClick={handleCopyWallet}
+                    className="wallet-copy-btn-header"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '12px',
+                      padding: '0.5rem 1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      color: copied ? '#22d3ee' : '#9ca3af',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      transition: 'all 0.2s',
+                      outline: 'none',
+                      backdropFilter: 'blur(10px)',
+                      boxShadow: copied ? '0 0 10px rgba(34, 211, 238, 0.15)' : 'none',
+                      borderColor: copied ? '#22d3ee' : 'rgba(255, 255, 255, 0.08)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                      e.currentTarget.style.color = copied ? '#22d3ee' : '#fff';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                      e.currentTarget.style.color = copied ? '#22d3ee' : '#9ca3af';
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      {copied ? (
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      ) : (
+                        <>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </>
+                      )}
+                    </svg>
+                    {copied ? '¡Copiado!' : 'Copiar ID de billetera'}
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontFamily: 'monospace', background: 'rgba(255,255,255,0.02)', padding: '3px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }} title="Dirección UUID de tu billetera">
-                  ID: {user.id}
-                </span>
-                <button 
-                  onClick={handleCopyWallet}
-                  className="wallet-copy-btn-header"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '12px',
-                    padding: '0.5rem 1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    cursor: 'pointer',
-                    color: copied ? '#22d3ee' : '#9ca3af',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    transition: 'all 0.2s',
-                    outline: 'none',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: copied ? '0 0 10px rgba(34, 211, 238, 0.15)' : 'none',
-                    borderColor: copied ? '#22d3ee' : 'rgba(255, 255, 255, 0.08)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                    e.currentTarget.style.color = copied ? '#22d3ee' : '#fff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                    e.currentTarget.style.color = copied ? '#22d3ee' : '#9ca3af';
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    {copied ? (
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    ) : (
-                      <>
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                      </>
-                    )}
-                  </svg>
-                  {copied ? '¡Copiado!' : 'Copiar ID de billetera'}
+
+              {/* Acciones Rápidas con Degradados */}
+              <div className="balance-actions-row" style={{ marginTop: '1.5rem' }}>
+                <button className="balance-action-btn reload" onClick={() => setShowReloadModal(true)}>
+                  Cargar Billetera
+                </button>
+                <button className="balance-action-btn transfer" onClick={() => setShowTransferModal(true)}>
+                  Transferir Fondos
                 </button>
               </div>
             </div>
 
-            {/* Gráfico SVG de Líneas Fluido y Estilizado */}
-            <div className="chart-container">
-              <svg viewBox="0 0 500 200" width="100%" height="100%" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="rgba(6, 182, 212, 0.4)" />
-                    <stop offset="50%" stopColor="rgba(168, 85, 247, 0.15)" />
-                    <stop offset="100%" stopColor="rgba(11, 8, 19, 0)" />
-                  </linearGradient>
-                  <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#06b6d4" />
-                    <stop offset="50%" stopColor="#a855f7" />
-                    <stop offset="100%" stopColor="#ec4899" />
-                  </linearGradient>
-                </defs>
-                {/* Area under the line */}
-                <path d="M 0 160 Q 100 80 180 130 T 350 70 T 500 40 L 500 200 L 0 200 Z" fill="url(#chartGradient)" />
-                {/* Smooth bezier curves */}
-                <path d="M 0 160 Q 100 80 180 130 T 350 70 T 500 40" fill="none" stroke="url(#lineGradient)" strokeWidth="3" strokeLinecap="round" />
-                {/* Indicator dots */}
-                <circle cx="180" cy="130" r="5" fill="#06b6d4" style={{ filter: 'drop-shadow(0 0 6px #06b6d4)' }} />
-              </svg>
-            </div>
+            {/* Ticker de precios en vivo horizontal */}
+            {precios && (
+              <div className="p2p-prices-ticker glass-card" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '2.5rem',
+                padding: '0.8rem 1.5rem',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'rgba(25, 20, 38, 0.25)',
+                borderRadius: '16px',
+                flexWrap: 'wrap',
+                boxSizing: 'border-box',
+                width: '100%'
+              }}>
+                <span style={{ fontSize: '0.8rem', color: '#9ca3af', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                  Precios en Vivo:
+                </span>
+                <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '0.9rem', color: '#f3f4f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#f59e0b', fontSize: '1.1rem' }}>₿</span> Bitcoin (BTC): 
+                    <strong style={{ color: '#fff' }}>${precios.bitcoin.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong>
+                  </span>
+                  <span style={{ fontSize: '0.9rem', color: '#f3f4f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#a855f7', fontSize: '1.1rem' }}>Ξ</span> Ethereum (ETH): 
+                    <strong style={{ color: '#fff' }}>${precios.ethereum.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong>
+                  </span>
+                  <span style={{ fontSize: '0.9rem', color: '#f3f4f6', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#14b8a6', fontSize: '1.1rem' }}>S</span> Solana (SOL): 
+                    <strong style={{ color: '#fff' }}>${precios.solana.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD</strong>
+                  </span>
+                </div>
+              </div>
+            )}
 
-            {/* Acciones Rápidas con Degradados */}
-            <div className="balance-actions-row">
-              <button className="balance-action-btn reload" onClick={() => setShowReloadModal(true)}>
-                Cargar Billetera
-              </button>
-              <button className="balance-action-btn transfer" onClick={() => setShowTransferModal(true)}>
-                Transferir Fondos
-              </button>
+            {/* Nueva Tarjeta: Gráfica de Rendimiento de Mercado */}
+            <div className="market-chart-card glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', padding: '1.75rem', position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', margin: 0 }}>Rendimiento del Mercado</h3>
+                  <p style={{ fontSize: '0.8rem', color: '#9ca3af', margin: '4px 0 0 0' }}>Historial de precios de los últimos 7 días</p>
+                </div>
+                {/* Tabs para BTC, ETH, SOL */}
+                <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedCrypto('bitcoin')}
+                    style={{
+                      background: selectedCrypto === 'bitcoin' ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'transparent',
+                      color: selectedCrypto === 'bitcoin' ? '#fff' : '#9ca3af',
+                      border: 'none',
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 750,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    BTC
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedCrypto('ethereum')}
+                    style={{
+                      background: selectedCrypto === 'ethereum' ? 'linear-gradient(135deg, #3b82f6 0%, #a855f7 100%)' : 'transparent',
+                      color: selectedCrypto === 'ethereum' ? '#fff' : '#9ca3af',
+                      border: 'none',
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 750,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    ETH
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setSelectedCrypto('solana')}
+                    style={{
+                      background: selectedCrypto === 'solana' ? 'linear-gradient(135deg, #14b8a6 0%, #a855f7 100%)' : 'transparent',
+                      color: selectedCrypto === 'solana' ? '#fff' : '#9ca3af',
+                      border: 'none',
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 750,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    SOL
+                  </button>
+                </div>
+              </div>
+
+              {/* Área del Gráfico con Recharts */}
+              <div style={{ width: '100%', height: 260, position: 'relative' }}>
+                {chartLoading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px' }}>
+                    <div className="spinner" style={{ width: '30px', height: '30px' }}></div>
+                    <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Cargando rendimiento...</span>
+                  </div>
+                ) : chartError ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#ef4444', fontSize: '0.85rem' }}>
+                    <span>{chartError}</span>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="selectedCryptoGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={gradientStart} />
+                          <stop offset="100%" stopColor={gradientEnd} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255, 255, 255, 0.04)" />
+                      <XAxis 
+                        dataKey="simpleDate" 
+                        stroke="#6b7280" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                        dy={10}
+                      />
+                      <YAxis 
+                        stroke="#6b7280" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false}
+                        domain={['auto', 'auto']}
+                        tickFormatter={formatYAxisTick}
+                        dx={-5}
+                      />
+                      <Tooltip content={<CustomChartTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="price" 
+                        stroke={chartStroke} 
+                        strokeWidth={2.5} 
+                        fillOpacity={1} 
+                        fill="url(#selectedCryptoGradient)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
             </div>
           </div>
 
@@ -650,7 +1118,7 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
         </div>
 
         <footer className="dashboard-footer">
-          <p>© 2026 AetherWallet. Panel de control financiero seguro.</p>
+          <p>© 2026 Mi Billetera Virtual. Panel de control financiero seguro.</p>
         </footer>
       </div>
 

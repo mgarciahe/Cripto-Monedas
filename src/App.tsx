@@ -81,6 +81,28 @@ function App() {
   }, []);
 
   const handleNavigate = (view: string) => {
+    if (view === 'invitado') {
+      const mockSession: Session = {
+        access_token: 'mock-token',
+        refresh_token: 'mock-refresh-token',
+        expires_in: 3600,
+        token_type: 'bearer',
+        user: {
+          id: 'guest-user-id',
+          app_metadata: {},
+          user_metadata: {
+            full_name: 'Invitado',
+            avatar_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=150&q=80'
+          },
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+          email: 'invitado@billeteravirtual.com'
+        }
+      };
+      setSession(mockSession);
+    } else if (view === 'welcome' && session?.user?.id === 'guest-user-id') {
+      setSession(null);
+    }
     setCurrentView(view);
   };
 

@@ -20,17 +20,17 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
       const errorCode = params.get('error');
       if (errorCode || errorDesc) {
         let friendlyMsg = errorDesc || errorCode || 'Error de autenticación.';
-        
+
         if (
-          friendlyMsg.toLowerCase().includes('database') || 
-          friendlyMsg.toLowerCase().includes('trigger') || 
+          friendlyMsg.toLowerCase().includes('database') ||
+          friendlyMsg.toLowerCase().includes('trigger') ||
           friendlyMsg.toLowerCase().includes('hook')
         ) {
           friendlyMsg = `Error de Base de Datos al registrar nuevo usuario: "${friendlyMsg}". Revisa la consistencia de las columnas en 'perfiles' y 'billeteras' para no abortar la transacción ACID de registro.`;
         }
-        
+
         setErrorMsg(friendlyMsg);
-        
+
         // Limpiar hash de la URL
         window.history.replaceState(null, '', window.location.pathname);
       }
@@ -89,7 +89,7 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
             </svg>
           </div>
-          <span className="logo-text">Aether<span className="logo-highlight">Wallet</span></span>
+          <span className="logo-text">Mi Billetera <span className="logo-highlight">Virtual</span></span>
         </div>
         {/* Acciones simplificadas y movidas al centro de la página */}
       </header>
@@ -97,7 +97,6 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
       {/* Main Content Grid */}
       <main className="welcome-main">
         <section className="hero-section animate-slide-up">
-          <div className="hero-badge">BETA ABIERTA</div>
           <h1 className="hero-title">
             La billetera del futuro, <br />
             <span className="gradient-text">en tus manos.</span>
@@ -174,8 +173,8 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
               <span className="mockup-time">09:41</span>
               <div className="mockup-notch"></div>
               <div className="mockup-icons">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c3.9 3.9 10.2 3.9 14.1 0l1.78-1.78C21.46 16.07 22 14.12 22 12c0-4.97-4.03-9-9-9zm0 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17 5H7a3 3 0 00-3 3v8a3 3 0 003 3h10a3 3 0 003-3V8a3 3 0 00-3-3zm1 11a1 1 0 01-1 1H7a1 1 0 01-1-1V8a1 1 0 011-1h10a1 1 0 011 1v8z"/></svg>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c3.9 3.9 10.2 3.9 14.1 0l1.78-1.78C21.46 16.07 22 14.12 22 12c0-4.97-4.03-9-9-9zm0 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z" /></svg>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17 5H7a3 3 0 00-3 3v8a3 3 0 003 3h10a3 3 0 003-3V8a3 3 0 00-3-3zm1 11a1 1 0 01-1 1H7a1 1 0 01-1-1V8a1 1 0 011-1h10a1 1 0 011 1v8z" /></svg>
               </div>
             </div>
 
@@ -315,7 +314,7 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
 
       {/* Footer info */}
       <footer className="welcome-footer animate-fade-in-delayed">
-        <p>© 2026 AetherWallet. Arquitectura modular React + TypeScript.</p>
+        <p>© 2026 Mi Billetera Virtual. Arquitectura modular React + TypeScript.</p>
         <div className="footer-links">
           <span>Wallet</span> • <span>P2P</span> • <span>Admin</span> • <span>Login</span> • <span>Invitado</span>
         </div>
