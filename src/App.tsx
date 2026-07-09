@@ -39,6 +39,10 @@ function App() {
       return false;
     }
 
+    if (isNewUser && oauthMode === 'register') {
+      sessionStorage.setItem('show_bonus_welcome', 'true');
+    }
+
     sessionStorage.removeItem('oauth_mode');
     return true;
   };

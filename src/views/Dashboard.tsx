@@ -93,6 +93,7 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
   // Estados para controlar los modales del Sidebar / Saldo
   const [showReloadModal, setShowReloadModal] = useState<boolean>(false);
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
+  const [showWelcomeBonusModal, setShowWelcomeBonusModal] = useState<boolean>(false);
 
 
   // Función reutilizable para consultar balances (soporta recarga en segundo plano)
@@ -239,6 +240,14 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
       isMounted = false;
       clearInterval(interval);
     };
+  }, []);
+
+  useEffect(() => {
+    const showBonus = sessionStorage.getItem('show_bonus_welcome');
+    if (showBonus === 'true') {
+      setShowWelcomeBonusModal(true);
+      sessionStorage.removeItem('show_bonus_welcome');
+    }
   }, []);
 
   useEffect(() => {
@@ -1691,6 +1700,57 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BONO DE BIENVENIDA */}
+      {showWelcomeBonusModal && (
+        <div className="p2p-modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="p2p-modal-card" style={{ maxWidth: '440px', width: '90%', textAlign: 'center', padding: '2rem 1.75rem', background: 'linear-gradient(135deg, rgba(20, 10, 35, 0.95) 0%, rgba(10, 5, 20, 0.95) 100%)', border: '1px solid rgba(168, 85, 247, 0.25)', boxShadow: '0 8px 32px rgba(168, 85, 247, 0.2)' }}>
+            
+            <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem', filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.6))' }}>
+              🎁
+            </div>
+
+            <h3 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#fff', margin: '0 0 0.75rem 0', letterSpacing: '-0.5px' }}>
+              ¡Gracias por registrarte!
+            </h3>
+
+            <p style={{ fontSize: '0.9rem', color: '#e5e7eb', lineHeight: '1.6', margin: '0 0 1.5rem 0' }}>
+              Gracias por registrarte en mi billetera virtual.
+            </p>
+
+            <div style={{ background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', borderRadius: '12px', padding: '1rem', marginBottom: '1.5rem' }}>
+              <span style={{ fontSize: '0.8rem', color: '#a855f7', textTransform: 'uppercase', fontWeight: 'bold', display: 'block', marginBottom: '4px', letterSpacing: '0.5px' }}>Balance Inicial</span>
+              <strong style={{ fontSize: '1.8rem', color: '#10b981', fontFamily: 'monospace', display: 'block' }}>$10,000 USD</strong>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#9ca3af', lineHeight: '1.5', margin: '0 0 1.75rem 0' }}>
+              Has obtenido un bono de $10,000.<br />
+              Puedes utilizarlos en compras a criptomonedas.
+            </p>
+
+            <button
+              onClick={() => setShowWelcomeBonusModal(false)}
+              style={{
+                background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+                border: 'none',
+                color: '#fff',
+                borderRadius: '10px',
+                padding: '0.75rem 2rem',
+                fontWeight: 'bold',
+                fontSize: '0.95rem',
+                cursor: 'pointer',
+                width: '100%',
+                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.3)',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 6px 20px rgba(168, 85, 247, 0.5)'}
+              onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 4px 15px rgba(168, 85, 247, 0.3)'}
+            >
+              Comenzar a operar
+            </button>
           </div>
         </div>
       )}
