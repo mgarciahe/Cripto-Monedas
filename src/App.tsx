@@ -26,21 +26,21 @@ function App() {
     const isNewUser = user.created_at && user.last_sign_in_at && 
       (new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime() < 8000);
 
-    if (isNewUser && (oauthMode === 'login' || !oauthMode)) {
-      console.warn("Usuario nuevo de Google detectado intentando ingresar en iniciar sesión. Cancelando...");
+    if (isNewUser) {
+      console.warn("Usuario nuevo de Google detectado. Redirigiendo a Iniciar Sesión con mensaje de éxito...");
       sessionStorage.removeItem('oauth_mode');
+      sessionStorage.setItem('oauth_register_success', 'true');
+      
+      // Guardar bandera persistente en localStorage para este usuario
+      localStorage.setItem(`show_bonus_${user.id}`, 'true');
       
       // Cerrar sesión
       await supabase.auth.signOut();
       setSession(null);
       
-      // Redirigir a registro
-      setCurrentView('register');
+      // Redirigir a inicio de sesión
+      setCurrentView('login');
       return false;
-    }
-
-    if (isNewUser && oauthMode === 'register') {
-      sessionStorage.setItem('show_bonus_welcome', 'true');
     }
 
     sessionStorage.removeItem('oauth_mode');

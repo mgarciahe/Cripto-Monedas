@@ -243,12 +243,12 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
   }, []);
 
   useEffect(() => {
-    const showBonus = sessionStorage.getItem('show_bonus_welcome');
+    const showBonus = localStorage.getItem(`show_bonus_${user.id}`);
     if (showBonus === 'true') {
       setShowWelcomeBonusModal(true);
-      sessionStorage.removeItem('show_bonus_welcome');
+      localStorage.removeItem(`show_bonus_${user.id}`);
     }
-  }, []);
+  }, [user.id]);
 
   useEffect(() => {
     let isMounted = true;

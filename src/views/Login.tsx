@@ -19,6 +19,15 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
     setErrorMsg(null);
     setSuccessMsg(null);
   }, [initialRegisterMode]);
+
+  // Escuchar si la cuenta fue creada a través de Google OAuth
+  useEffect(() => {
+    const isRegSuccess = sessionStorage.getItem('oauth_register_success');
+    if (isRegSuccess === 'true') {
+      setSuccessMsg('¡Tu cuenta ha sido creada con éxito! Por favor, inicia sesión para comenzar a operar.');
+      sessionStorage.removeItem('oauth_register_success');
+    }
+  }, []);
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
