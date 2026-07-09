@@ -147,9 +147,7 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
                   </li>
                 ))}
               </ul>
-              <button className="btn-action" onClick={() => onNavigate?.(activeTab)}>
-                Ir a la Vista {viewsInfo[activeTab].title}
-              </button>
+
             </div>
           </div>
         </section>

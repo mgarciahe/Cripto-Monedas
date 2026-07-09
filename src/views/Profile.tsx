@@ -62,6 +62,7 @@ export default function Profile({ session, onNavigate, userRole }: ProfileProps)
     if (confirmation) {
       try {
         await logout();
+        onNavigate('welcome');
       } catch (err) {
         console.error('Error al cerrar sesión:', err);
       }
