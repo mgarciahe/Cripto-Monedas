@@ -150,8 +150,16 @@ export default function Profile({ session, onNavigate, userRole }: ProfileProps)
 
       {/* 1. LEFT SIDEBAR */}
       <aside className="sidebar-container">
-        <div className="sidebar-logo">
-          <span className="logo-icon">▲</span> Mi Billetera Virtual
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="logo-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#a855f7', filter: 'drop-shadow(0 0 6px rgba(168, 85, 247, 0.6))' }}>
+              <path d="M18 10V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v4" />
+              <rect x="3" y="10" width="18" height="10" rx="2" />
+              <path d="M17 14h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
+              <circle cx="18" cy="15" r="1.2" fill="currentColor" />
+            </svg>
+          </span>
+          Mi Billetera Virtual
         </div>
         <nav className="sidebar-menu">
           <button className="menu-item" onClick={() => onNavigate('welcome')}>
