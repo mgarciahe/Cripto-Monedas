@@ -63,14 +63,14 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
     },
     p2p: {
       title: 'Comercio P2P',
-      description: 'Compra y vende criptomonedas directamente con otros usuarios de forma segura mediante nuestro sistema de depósito en garantía (escrow).',
-      features: ['Filtros de Búsqueda', 'Calificación de Comerciantes', 'Chat Integrado'],
+      description: 'Compra y vende criptomonedas directamente con otros usuarios de forma segura mediante nuestro sistema de depósito en garantía.',
+      features: ['Verificacion de usuarios', 'saldos congelados', 'compras efectivas'],
       badge: 'Seguro'
     },
     admin: {
       title: 'Panel de Administración',
       description: 'Control total de la plataforma: monitoreo de transacciones globales, gestión de usuarios, límites de retiro y control de liquidez.',
-      features: ['Métricas del Sistema', 'Gestión de Usuarios', 'Logs de Seguridad'],
+      features: ['Métricas del Sistema', 'Gestión de Usuarios', 'Verificacion de compras'],
       badge: 'Control'
     }
   };
@@ -102,7 +102,7 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
             <span className="gradient-text">en tus manos.</span>
           </h1>
           <p className="hero-subtitle">
-            Una plataforma modular, segura y ultrarrápida para gestionar tus activos, realizar intercambios P2P y monitorear el mercado de criptomonedas.
+            Una plataforma segura y ultrarrápida para gestionar tus activos, realizar intercambios de criptomonedas y monitorear el mercado cripto de forma en vivo.
           </p>
           <div className="hero-actions" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '1rem', marginTop: '2rem' }}>
             <button className="btn-hero-primary" onClick={() => onNavigate?.('register')}>
@@ -158,9 +158,11 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
                   </li>
                 ))}
               </ul>
-              <button className="btn-action" onClick={() => onNavigate?.(activeTab)}>
-                Ir a la Vista {viewsInfo[activeTab].title}
-              </button>
+              {activeTab !== 'admin' && (
+                <button className="btn-action" onClick={() => onNavigate?.('login')}>
+                  Ir a la Vista {viewsInfo[activeTab].title}
+                </button>
+              )}
             </div>
           </div>
         </section>

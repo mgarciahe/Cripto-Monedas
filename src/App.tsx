@@ -22,7 +22,15 @@ function App() {
     const user = s.user;
     const oauthMode = sessionStorage.getItem('oauth_mode');
     
-    // Si la cuenta es nueva, created_at y last_sign_in_at tendrán la misma fecha o diferencia menor a 8s
+    // Solo aplicar esta guardia a usuarios que vienen de OAuth con Google
+    const isGoogleUser = user.app_metadata?.provider === 'google';
+    if (!isGoogleUser) {
+      // El usuario se registró manualmente con email/password: siempre permitir
+      sessionStorage.removeItem('oauth_mode');
+      return true;
+    }
+
+    // Si la cuenta de Google es nueva, created_at y last_sign_in_at tendrán la misma fecha o diferencia menor a 8s
     const isNewUser = user.created_at && user.last_sign_in_at && 
       (new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime() < 8000);
 
