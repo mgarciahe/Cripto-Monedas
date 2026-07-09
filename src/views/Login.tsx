@@ -33,7 +33,7 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
       setLoading(true);
       setErrorMsg(null);
       const mode = isRegisterMode ? 'register' : 'login';
-      sessionStorage.setItem('oauth_mode', mode);
+      localStorage.setItem('oauth_mode', mode);
       await signInWithGoogle(mode);
     } catch (err: unknown) {
       console.error('Error al iniciar sesión con Google:', err);
