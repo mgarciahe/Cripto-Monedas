@@ -16,6 +16,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export interface Billetera {
+  id?: string;
   usuario_id: string;
   balance_usd: number;
   balance_btc: number;
@@ -30,6 +31,7 @@ export interface Billetera {
 export async function getWalletBalances(userId: string): Promise<Billetera | null> {
   if (userId === 'guest-user-id') {
     return {
+      id: 'e89d1b46-0c6d-4eb3-81b3-d5d852a4658e',
       usuario_id: 'guest-user-id',
       balance_usd: 11087.00,
       balance_btc: 0.125,
@@ -51,6 +53,7 @@ export async function getWalletBalances(userId: string): Promise<Billetera | nul
 
   // Mapear las columnas físicas de Supabase (saldo_usd, etc.) al modelo de datos del cliente (balance_usd, etc.)
   return {
+    id: data.id,
     usuario_id: data.usuario_id,
     balance_usd: Number(data.saldo_usd ?? 0),
     balance_btc: Number(data.saldo_btc ?? 0),

@@ -5,11 +5,15 @@ import Welcome from './views/Welcome';
 import Dashboard from './views/Dashboard';
 import MercadoP2P from './views/MercadoP2P';
 import Login from './views/Login';
+import AdminDashboard from './views/AdminDashboard';
+import Profile from './views/Profile';
+import { getUserRole } from './services/auth';
 import './App.css';
 
 function App() {
   // 1. Estado de la Sesión con tipado oficial de Supabase
   const [session, setSession] = useState<Session | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<string>('welcome');
 
   // Valida si la sesión es legítima para iniciar sesión (evita auto-registro con Google si es nuevo)
@@ -56,9 +60,13 @@ function App() {
         const isValid = await validateSession(currentSession);
         if (isValid) {
           setSession(currentSession);
+          getUserRole(currentSession.user.id).then((rol) => {
+            setUserRole(rol || 'Usuario');
+          });
         }
       } else {
         setSession(null);
+        setUserRole(null);
       }
     });
 
@@ -68,9 +76,13 @@ function App() {
         const isValid = await validateSession(currentSession);
         if (isValid) {
           setSession(currentSession);
+          getUserRole(currentSession.user.id).then((rol) => {
+            setUserRole(rol || 'Usuario');
+          });
         }
       } else {
         setSession(null);
+        setUserRole(null);
       }
     });
 
@@ -79,6 +91,18 @@ function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Guardia de Ruta: Redirige a inicio si un no-administrador intenta acceder a la ruta admin
+  useEffect(() => {
+    if (currentView === 'admin') {
+      if (!session) {
+        setCurrentView('welcome');
+      } else if (userRole?.toLowerCase() !== 'administrador' && userRole !== null) {
+        console.warn("Acceso denegado: El usuario no posee privilegios de Administrador. Redirigiendo a Dashboard...");
+        setCurrentView('welcome');
+      }
+    }
+  }, [currentView, userRole, session]);
 
   const handleNavigate = (view: string) => {
     if (view === 'invitado') {
@@ -100,8 +124,10 @@ function App() {
         }
       };
       setSession(mockSession);
+      setUserRole('Usuario');
     } else if (view === 'welcome' && session?.user?.id === 'guest-user-id') {
       setSession(null);
+      setUserRole(null);
     }
     setCurrentView(view);
   };
@@ -173,11 +199,12 @@ function App() {
     <main>
       {session ? (
         <>
-          {currentView === 'welcome' && <Dashboard session={session} onNavigate={handleNavigate} />}
+          {currentView === 'welcome' && <Dashboard session={session} onNavigate={handleNavigate} userRole={userRole} />}
           {currentView === 'wallet' && renderPlaceholder('Billetera (Wallet)', '6, 182, 212')}
-          {currentView === 'p2p' && <MercadoP2P session={session} onNavigate={handleNavigate} />}
-          {currentView === 'admin' && renderPlaceholder('Panel de Administración', '239, 68, 68')}
-          {(currentView === 'login' || currentView === 'register' || currentView === 'invitado') && <Dashboard session={session} onNavigate={handleNavigate} />}
+          {currentView === 'p2p' && <MercadoP2P session={session} onNavigate={handleNavigate} userRole={userRole} />}
+          {currentView === 'admin' && <AdminDashboard session={session} onNavigate={handleNavigate} userRole={userRole} />}
+          {currentView === 'profile' && <Profile session={session} onNavigate={handleNavigate} userRole={userRole} />}
+          {(currentView === 'login' || currentView === 'register' || currentView === 'invitado') && <Dashboard session={session} onNavigate={handleNavigate} userRole={userRole} />}
         </>
       ) : (
         <>

@@ -10,10 +10,12 @@ interface LoginProps {
 
 export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
   const [isRegisterMode, setIsRegisterMode] = useState<boolean>(!!initialRegisterMode);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(false);
 
   // Sincronizar el modo si cambia por navegación externa
   useEffect(() => {
     setIsRegisterMode(!!initialRegisterMode);
+    setIsAdminMode(false);
     setErrorMsg(null);
     setSuccessMsg(null);
   }, [initialRegisterMode]);
@@ -78,7 +80,7 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
         // Verificar si el correo ya está registrado en perfiles
         const { data: profile, error: profileErr } = await supabase
           .from('perfiles')
-          .select('id')
+          .select('id, rol')
           .eq('email', email.trim().toLowerCase())
           .maybeSingle();
 
@@ -97,6 +99,14 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
           return;
         }
 
+        // Si es inicio de sesión como Administrador, forzar la validación de rol
+        const userRolValue = (profile as any).rol || (profile as any).role;
+        if (isAdminMode && userRolValue?.toLowerCase() !== 'administrador') {
+          setErrorMsg('Acceso denegado: Esta cuenta no posee privilegios de Administrador.');
+          setLoading(false);
+          return;
+        }
+
         // Iniciar sesión
         await signInWithEmail(email.trim(), password.trim());
       }
@@ -111,8 +121,8 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
   return (
     <div className="login-container">
       {/* Background glow elements */}
-      <div className="login-glow glow-1"></div>
-      <div className="login-glow glow-2"></div>
+      <div className="login-glow glow-1" style={isAdminMode ? { background: 'rgba(239, 68, 68, 0.15)' } : undefined}></div>
+      <div className="login-glow glow-2" style={isAdminMode ? { background: 'rgba(185, 28, 28, 0.1)' } : undefined}></div>
 
       <div className="login-card-wrapper">
         <button className="btn-back-home" onClick={() => onNavigate('welcome')}>
@@ -121,16 +131,67 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
 
         <div className="login-card glass-card">
           <div className="login-header">
-            <h2 className="login-title">
-              {isRegisterMode ? 'Crear una Cuenta' : 'Iniciar Sesión'}
+            <h2 className="login-title" style={isAdminMode ? { color: '#f87171' } : undefined}>
+              {isRegisterMode ? 'Crear una Cuenta' : (isAdminMode ? '🔒 Acceso Admin' : 'Iniciar Sesión')}
             </h2>
             <p className="login-subtitle">
               {isRegisterMode 
                 ? 'Regístrate para comenzar a gestionar tus criptoactivos en Mi Billetera Virtual' 
-                : 'Accede a tus saldos y opera en el mercado P2P'
+                : (isAdminMode ? 'Inicia sesión con tus credenciales de Administrador para auditar la plataforma' : 'Accede a tus saldos y opera en el mercado P2P')
               }
             </p>
           </div>
+
+          {/* Selector de tipo de acceso (solo visible en modo login, no en registro) */}
+          {!isRegisterMode && (
+            <div className="auth-type-selector" style={{
+              display: 'flex',
+              background: 'rgba(255, 255, 255, 0.03)',
+              padding: '4px',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              margin: '1.5rem 0'
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsAdminMode(false)}
+                style={{
+                  flex: 1,
+                  background: !isAdminMode ? 'linear-gradient(135deg, #a855f7, #6366f1)' : 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: !isAdminMode ? '0 4px 12px rgba(168, 85, 247, 0.2)' : 'none'
+                }}
+              >
+                Usuario Estándar
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAdminMode(true)}
+                style={{
+                  flex: 1,
+                  background: isAdminMode ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: isAdminMode ? '0 4px 12px rgba(239, 68, 68, 0.2)' : 'none'
+                }}
+              >
+                🔒 Administrador
+              </button>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="login-alert error">
@@ -214,10 +275,15 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="btn-auth-submit">
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className="btn-auth-submit"
+              style={isAdminMode ? { background: 'linear-gradient(135deg, #ef4444, #b91c1c)', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.3)' } : undefined}
+            >
               {loading 
                 ? 'Cargando...' 
-                : (isRegisterMode ? 'Registrarse' : 'Ingresar')
+                : (isRegisterMode ? 'Registrarse' : (isAdminMode ? 'Ingresar como Admin' : 'Ingresar'))
               }
             </button>
           </form>

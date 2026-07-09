@@ -1,21 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { logout } from '../services/auth';
 import { getWalletBalances } from '../services/supabase';
 import type { Billetera } from '../services/supabase';
 import { getCryptoPrices, getCryptoHistory } from '../services/prices';
 import type { PreciosCripto } from '../services/prices';
-import { transferFunds, reloadBalance, buyCrypto, getTransactionHistory } from '../services/wallet';
-import type { Movimiento } from '../services/wallet';
+import { transferFunds, reloadBalance, buyCrypto, getTransactionHistory, getUserNotifications, markNotificationsAsRead } from '../services/wallet';
+import type { Movimiento, Notificacion } from '../services/wallet';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import './Dashboard.css';
 
 interface DashboardProps {
   session: Session;
   onNavigate: (view: string) => void;
+  userRole?: string | null;
 }
 
-export default function Dashboard({ session, onNavigate }: DashboardProps) {
+export default function Dashboard({ session, onNavigate, userRole }: DashboardProps) {
+  const user = session.user;
+  const userMetadata = user.user_metadata;
+  const avatarUrl = userMetadata?.avatar_url || '';
+  const fullName = userMetadata?.full_name || 'Usuario';
+  const email = user.email || 'correo@ejemplo.com';
+
   // Estado dinámico para almacenar balances reales de Supabase
   const [billetera, setBilletera] = useState<Billetera | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -62,6 +69,20 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   // Estados para las notificaciones
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [hasNewNotifications, setHasNewNotifications] = useState<boolean>(false);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (user.id === 'guest-user-id') return;
+    try {
+      const data = await getUserNotifications(user.id);
+      setNotificaciones(data);
+      if (data.some((n) => !n.leido)) {
+        setHasNewNotifications(true);
+      }
+    } catch (err) {
+      console.error('Error al cargar notificaciones:', err);
+    }
+  }, [user.id]);
 
   // Estados para la gráfica interactiva de rendimiento de mercado
   const [selectedCrypto, setSelectedCrypto] = useState<'bitcoin' | 'ethereum' | 'solana'>('bitcoin');
@@ -73,13 +94,6 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   const [showReloadModal, setShowReloadModal] = useState<boolean>(false);
   const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
 
-  const user = session.user;
-  const userMetadata = user.user_metadata;
-  
-  // Extraer datos del perfil de Google de forma segura
-  const avatarUrl = userMetadata?.avatar_url || '';
-  const fullName = userMetadata?.full_name || 'Usuario';
-  const email = user.email || 'correo@ejemplo.com';
 
   // Función reutilizable para consultar balances (soporta recarga en segundo plano)
   const fetchWallet = useCallback(async (showLoading = true) => {
@@ -131,19 +145,77 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
     }
   }, [showTxHistory, fetchTransactions]);
 
+  const combinedAlerts = useMemo(() => {
+    const alerts: Array<{
+      id: string;
+      tipo: 'admin' | 'transaccion';
+      fecha: Date;
+      mensaje: string;
+      dotColor?: string;
+      creado_a: string;
+    }> = [];
+
+    // 1. Agregar notificaciones del administrador
+    notificaciones.forEach((n) => {
+      alerts.push({
+        id: n.id,
+        tipo: 'admin',
+        fecha: new Date(n.creado_a),
+        mensaje: n.mensaje,
+        creado_a: n.creado_a
+      });
+    });
+
+    // 2. Agregar transacciones del sistema
+    transacciones.forEach((tx) => {
+      let dotColor = '#9ca3af';
+      let label = tx.detalle;
+      if (tx.tipo === 'deposito') {
+        dotColor = '#22d3ee';
+        label = `Saldo recargado: +$${Number(tx.monto_usd).toFixed(2)} USD`;
+      } else if (tx.tipo === 'compra_directa' || tx.tipo === 'compra_p2p') {
+        dotColor = '#10b981';
+        label = `Compra exitosa: +${Number(tx.cantidad_cripto).toFixed(4)} ${tx.moneda}`;
+      } else if (tx.tipo === 'venta_p2p') {
+        dotColor = '#f59e0b';
+        label = `Venta P2P completada: +$${Number(tx.monto_usd).toFixed(2)} USD`;
+      } else if (tx.tipo === 'transferencia_enviada') {
+        dotColor = '#ef4444';
+        label = `Transferencia enviada: -${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
+      } else if (tx.tipo === 'transferencia_recibida') {
+        dotColor = '#10b981';
+        label = `Fondos recibidos: +${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
+      }
+
+      alerts.push({
+        id: tx.id,
+        tipo: 'transaccion',
+        fecha: new Date(tx.creado_a),
+        mensaje: label,
+        dotColor,
+        creado_a: tx.creado_a
+      });
+    });
+
+    // Ordenar descendentemente por fecha
+    return alerts.sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
+  }, [notificaciones, transacciones]);
+
   useEffect(() => {
     // Carga inicial
     fetchWallet(true);
     fetchTransactions(false);
+    fetchNotifications();
 
     // Polling en segundo plano cada 10 segundos
     const interval = setInterval(() => {
       fetchWallet(false);
       fetchTransactions(false);
+      fetchNotifications();
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [fetchWallet, fetchTransactions]);
+  }, [fetchWallet, fetchTransactions, fetchNotifications]);
 
   useEffect(() => {
     let isMounted = true;
@@ -343,10 +415,17 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
     }
   };
 
-  const handleToggleNotifications = () => {
-    setShowNotifications(!showNotifications);
-    if (!showNotifications && transacciones.length > 0) {
-      localStorage.setItem(`lastSeenTx:${user.id}`, transacciones[0].id);
+  const handleToggleNotifications = async () => {
+    const nextShow = !showNotifications;
+    setShowNotifications(nextShow);
+    if (nextShow) {
+      if (user.id !== 'guest-user-id') {
+        await markNotificationsAsRead(user.id);
+        setNotificaciones(prev => prev.map(n => ({ ...n, leido: true })));
+      }
+      if (transacciones.length > 0) {
+        localStorage.setItem(`lastSeenTx:${user.id}`, transacciones[0].id);
+      }
       setHasNewNotifications(false);
     }
   };
@@ -691,6 +770,13 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
             </svg>
             Comercio de Criptomonedas
           </button>
+          <button className="menu-item" onClick={() => onNavigate('profile')}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            Mi Perfil
+          </button>
           <button className="menu-item" onClick={() => setShowTxHistory(true)}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -700,6 +786,15 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
             </svg>
             Historial
           </button>
+          {userRole?.toLowerCase() === 'administrador' && (
+            <button className="menu-item" onClick={() => onNavigate('admin')} style={{ borderLeft: '3px solid #ef4444', color: '#f3f4f6' }}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+               Administración
+            </button>
+          )}
         </nav>
       </aside>
 
@@ -1521,48 +1616,60 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
               <button className="p2p-modal-close-btn" onClick={() => setShowNotifications(false)}>&times;</button>
             </div>
             <div className="p2p-modal-body" style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {transacciones.length === 0 ? (
+              {combinedAlerts.length === 0 ? (
                 <span style={{ color: '#9ca3af', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>No tienes notificaciones recientes.</span>
               ) : (
-                transacciones.slice(0, 10).map((tx) => {
-                  let dotColor = '#9ca3af';
-                  let label = tx.detalle;
-                  if (tx.tipo === 'deposito') {
-                    dotColor = '#22d3ee';
-                    label = `Saldo recargado: +$${Number(tx.monto_usd).toFixed(2)} USD`;
-                  } else if (tx.tipo === 'compra_directa' || tx.tipo === 'compra_p2p') {
-                    dotColor = '#10b981';
-                    label = `Compra exitosa: +${Number(tx.cantidad_cripto).toFixed(4)} ${tx.moneda}`;
-                  } else if (tx.tipo === 'venta_p2p') {
-                    dotColor = '#f59e0b';
-                    label = `Venta P2P completada: +$${Number(tx.monto_usd).toFixed(2)} USD`;
-                  } else if (tx.tipo === 'transferencia_enviada') {
-                    dotColor = '#ef4444';
-                    label = `Transferencia enviada: -${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
-                  } else if (tx.tipo === 'transferencia_recibida') {
-                    dotColor = '#10b981';
-                    label = `Fondos recibidos: +${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
-                  }
-
-                  return (
-                    <div key={tx.id} style={{ display: 'flex', gap: '12px', fontSize: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem', alignItems: 'center', textAlign: 'left' }}>
-                      <span style={{ 
-                        width: '8px', 
-                        height: '8px', 
-                        borderRadius: '50%', 
-                        backgroundColor: dotColor, 
-                        boxShadow: `0 0 6px ${dotColor}`,
-                        flexShrink: 0 
-                      }}></span>
-                      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                        <span style={{ color: '#f3f4f6', fontWeight: 600, lineHeight: 1.3 }}>{label}</span>
-                        <span style={{ color: '#9ca3af', fontSize: '0.75rem', marginTop: '3px' }}>
-                          {new Date(tx.creado_a).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} a las {new Date(tx.creado_a).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {combinedAlerts.slice(0, 15).map((alert) => {
+                    if (alert.tipo === 'admin') {
+                      return (
+                        <div key={alert.id} style={{
+                          background: 'rgba(239, 68, 68, 0.08)',
+                          borderLeft: '3px solid #ef4444',
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          color: '#f3f4f6',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                          textAlign: 'left'
+                        }}>
+                          <span style={{ fontSize: '1.1rem', marginTop: '-2px' }}>⚠️</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, lineHeight: '1.4', fontWeight: 600 }}>{alert.mensaje}</p>
+                            <span style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
+                              {alert.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div key={alert.id} style={{
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          borderLeft: `3px solid ${alert.dotColor}`,
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          color: '#f3f4f6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          textAlign: 'left'
+                        }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: alert.dotColor, flexShrink: 0 }}></div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, lineHeight: '1.4' }}>{alert.mensaje}</p>
+                            <span style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
+                              {alert.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })}
+                </div>
               )}
             </div>
             <div className="p2p-modal-footer">

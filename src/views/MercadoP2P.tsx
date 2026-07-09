@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { logout } from '../services/auth';
-import { createP2POffer, buyP2POffer, getActiveOffers, transferFunds, reloadBalance, getTransactionHistory } from '../services/wallet';
-import type { OfertaP2P, Movimiento } from '../services/wallet';
-import { getWalletBalances } from '../services/supabase';
+import { createP2POffer, buyP2POffer, getActiveOffers, transferFunds, reloadBalance, getTransactionHistory, getUserNotifications, markNotificationsAsRead } from '../services/wallet';
+import type { OfertaP2P, Movimiento, Notificacion } from '../services/wallet';
+import { getWalletBalances, supabase } from '../services/supabase';
 import type { Billetera } from '../services/supabase';
 import { getCryptoPrices } from '../services/prices';
 import type { PreciosCripto } from '../services/prices';
@@ -12,9 +12,16 @@ import './MercadoP2P.css';
 interface MercadoP2PProps {
   session: Session;
   onNavigate: (view: string) => void;
+  userRole?: string | null;
 }
 
-export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
+export default function MercadoP2P({ session, onNavigate, userRole }: MercadoP2PProps) {
+  const user = session.user;
+  const userMetadata = user.user_metadata;
+  const avatarUrl = userMetadata?.avatar_url || '';
+  const fullName = userMetadata?.full_name || 'Usuario';
+  const email = user.email || 'correo@ejemplo.com';
+
   const [ofertas, setOfertas] = useState<OfertaP2P[]>([]);
   const [billetera, setBilletera] = useState<Billetera | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,20 +62,30 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
   const [txHistoryError, setTxHistoryError] = useState<string | null>(null);
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [hasNewNotifications, setHasNewNotifications] = useState<boolean>(false);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (user.id === 'guest-user-id') return;
+    try {
+      const data = await getUserNotifications(user.id);
+      setNotificaciones(data);
+      if (data.some((n) => !n.leido)) {
+        setHasNewNotifications(true);
+      }
+    } catch (err) {
+      console.error('Error al cargar notificaciones:', err);
+    }
+  }, [user.id]);
 
   // Control del modal de publicación
   const [showCreateOfferModal, setShowCreateOfferModal] = useState<boolean>(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Form states for creating offer
   const [moneda, setMoneda] = useState<string>('BTC');
   const [monto, setMonto] = useState<string>('');
   const [precioUnidad, setPrecioUnidad] = useState<string>('');
 
-  const user = session.user;
-  const userMetadata = user.user_metadata;
-  const avatarUrl = userMetadata?.avatar_url || '';
-  const fullName = userMetadata?.full_name || 'Usuario';
-  const email = user.email || 'correo@ejemplo.com';
 
   const handleLogoutClick = async () => {
     const confirmation = window.confirm("¿Estás seguro de que deseas cerrar sesión?");
@@ -82,13 +99,18 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
     }
   };
 
-  const handleToggleNotifications = () => {
-    setShowNotifications(!showNotifications);
-    if (hasNewNotifications) {
-      setHasNewNotifications(false);
+  const handleToggleNotifications = async () => {
+    const nextShow = !showNotifications;
+    setShowNotifications(nextShow);
+    if (nextShow) {
+      if (user.id !== 'guest-user-id') {
+        await markNotificationsAsRead(user.id);
+        setNotificaciones(prev => prev.map(n => ({ ...n, leido: true })));
+      }
       if (transacciones.length > 0) {
         localStorage.setItem(`lastSeenTx:${user.id}`, transacciones[0].id);
       }
+      setHasNewNotifications(false);
     }
   };
 
@@ -118,9 +140,9 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
   }, [user.id]);
 
   // Carga de datos sincronizada (Balances + Anuncios)
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setErrorMsg(null);
       
       // Consultar ofertas P2P activas
@@ -137,16 +159,96 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
 
       // Cargar notificaciones e historial
       await fetchTransactions(false);
+      await fetchNotifications();
     } catch (err: unknown) {
       console.error('Error al cargar datos del Mercado P2P:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Error al sincronizar datos del mercado.');
     } finally {
-      if (loading) setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  }, [user.id, fetchTransactions]);
+  }, [user.id, fetchTransactions, fetchNotifications]);
+
+  const combinedAlerts = useMemo(() => {
+    const alerts: Array<{
+      id: string;
+      tipo: 'admin' | 'transaccion';
+      fecha: Date;
+      mensaje: string;
+      dotColor?: string;
+      creado_a: string;
+    }> = [];
+
+    // 1. Agregar notificaciones del administrador
+    notificaciones.forEach((n) => {
+      alerts.push({
+        id: n.id,
+        tipo: 'admin',
+        fecha: new Date(n.creado_a),
+        mensaje: n.mensaje,
+        creado_a: n.creado_a
+      });
+    });
+
+    // 2. Agregar transacciones del sistema
+    transacciones.forEach((tx) => {
+      let dotColor = '#9ca3af';
+      let label = tx.detalle;
+      if (tx.tipo === 'deposito') {
+        dotColor = '#22d3ee';
+        label = `Saldo recargado: +$${Number(tx.monto_usd).toFixed(2)} USD`;
+      } else if (tx.tipo === 'compra_directa' || tx.tipo === 'compra_p2p') {
+        dotColor = '#10b981';
+        label = `Compra exitosa: +${Number(tx.cantidad_cripto).toFixed(4)} ${tx.moneda}`;
+      } else if (tx.tipo === 'venta_p2p') {
+        dotColor = '#f59e0b';
+        label = `Venta P2P completada: +$${Number(tx.monto_usd).toFixed(2)} USD`;
+      } else if (tx.tipo === 'transferencia_enviada') {
+        dotColor = '#ef4444';
+        label = `Transferencia enviada: -${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
+      } else if (tx.tipo === 'transferencia_recibida') {
+        dotColor = '#10b981';
+        label = `Fondos recibidos: +${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
+      }
+
+      alerts.push({
+        id: tx.id,
+        tipo: 'transaccion',
+        fecha: new Date(tx.creado_a),
+        mensaje: label,
+        dotColor,
+        creado_a: tx.creado_a
+      });
+    });
+
+    // Ordenar descendentemente por fecha
+    return alerts.sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
+  }, [notificaciones, transacciones]);
 
   useEffect(() => {
-    loadData();
+    // Carga inicial con spinner
+    loadData(true);
+
+    // Escuchar cambios en la tabla de ofertas P2P en tiempo real con WebSockets (0 consumo redundante de API)
+    const channel = supabase
+      .channel('realtime-ofertas-p2p')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ofertas_p2p'
+        },
+        (payload) => {
+          console.log('Cambio detectado en ofertas P2P en tiempo real:', payload);
+          // Recargar silenciosamente sin interrumpir al usuario
+          loadData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [loadData]);
 
   // Carga de precios en tiempo real para el ticker superior
@@ -252,17 +354,24 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
   const handleCreateOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccessMsg(null);
-    setErrorMsg(null);
+    setModalError(null);
 
     const montoVal = parseFloat(monto);
     const precioVal = parseFloat(precioUnidad);
 
     if (isNaN(montoVal) || montoVal <= 0) {
-      setErrorMsg('Por favor, ingresa una cantidad válida de criptomoneda.');
+      setModalError('Por favor, ingresa una cantidad válida de criptomoneda.');
       return;
     }
     if (isNaN(precioVal) || precioVal <= 0) {
-      setErrorMsg('Por favor, ingresa un precio unitario válido en USD.');
+      setModalError('Por favor, ingresa un precio unitario válido en USD.');
+      return;
+    }
+
+    // Obtener balance de cripto seleccionada
+    const { balance: currentBalance } = getSelectedCryptoStats();
+    if (montoVal > currentBalance) {
+      setModalError('Saldo insuficiente para realizar la oferta.');
       return;
     }
 
@@ -271,16 +380,17 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
       const res = await createP2POffer(user.id, moneda, montoVal, precioVal);
       
       if (!res.success) {
-        setErrorMsg(res.message);
+        setModalError(res.message);
       } else {
         setSuccessMsg(res.message);
         setMonto('');
         setPrecioUnidad('');
+        setModalError(null);
         setShowCreateOfferModal(false);
         await loadData();
       }
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Error al publicar la oferta.');
+      setModalError(err instanceof Error ? err.message : 'Error al publicar la oferta.');
     } finally {
       setSubmitting(false);
     }
@@ -307,6 +417,36 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
       }
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Error al procesar la compra.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+
+  // Permitir al propio usuario cancelar su oferta de venta
+  const handleCancelOwnOffer = async (ofertaId: string) => {
+    const confirmCancel = window.confirm('¿Estás seguro de que deseas cancelar esta publicación de venta P2P?');
+    if (!confirmCancel) return;
+  
+    try {
+      setSubmitting(true);
+      setErrorMsg(null);
+      setSuccessMsg(null);
+  
+      // Actualizar el estado de la oferta a 'cancelada_usuario'
+      const { error } = await supabase
+        .from('ofertas_p2p')
+        .update({ estado: 'cancelada_usuario' })
+        .eq('id', ofertaId);
+  
+      if (error) throw new Error(error.message);
+  
+      setSuccessMsg('Tu oferta ha sido cancelada correctamente.');
+      // Sincronizar datos silenciosamente
+      await loadData(false);
+    } catch (err: unknown) {
+      console.error('Error al cancelar la propia oferta:', err);
+      setErrorMsg(err instanceof Error ? err.message : 'Error al cancelar la oferta.');
     } finally {
       setSubmitting(false);
     }
@@ -382,6 +522,13 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
             </svg>
             Comercio de Criptomonedas
           </button>
+          <button className="menu-item" onClick={() => onNavigate('profile')}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            Mi Perfil
+          </button>
           <button className="menu-item" onClick={() => setShowTxHistory(true)}>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -391,6 +538,15 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
             </svg>
             Historial
           </button>
+          {userRole?.toLowerCase() === 'administrador' && (
+            <button className="menu-item" onClick={() => onNavigate('admin')} style={{ borderLeft: '3px solid #ef4444', color: '#f3f4f6' }}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              Administración
+            </button>
+          )}
         </nav>
       </aside>
 
@@ -491,7 +647,7 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
                 <h3 style={{ fontSize: '1.25rem' }}>Anuncios en Vivo (Comerciar Criptomonedas)</h3>
                 <p className="p2p-subtitle" style={{ fontSize: '0.85rem', color: '#9ca3af', margin: '4px 0 0 0' }}>Compra criptomonedas al instante utilizando tu balance de dólares (USD) o publica un anuncio.</p>
               </div>
-              <button className="balance-action-btn reload" onClick={() => setShowCreateOfferModal(true)} style={{ flex: 'none', padding: '0.75rem 1.5rem', borderRadius: '12px' }}>
+              <button className="balance-action-btn reload" onClick={() => { setShowCreateOfferModal(true); setModalError(null); }} style={{ flex: 'none', padding: '0.75rem 1.5rem', borderRadius: '12px' }}>
                 Publicar Oferta
               </button>
             </div>
@@ -552,24 +708,46 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
                             {isOwner ? 'Tú' : formatUserId(offer.vendedor_id)}
                           </td>
                           <td style={{ padding: '1rem 2rem 1rem 1rem', textAlign: 'right' }}>
-                            <button
-                              onClick={() => setSelectedOfferForBuy(offer)}
-                              disabled={isOwner || submitting}
-                              className={`btn-p2p-buy ${isOwner ? 'own-offer' : ''}`}
-                              style={{
-                                padding: '0.5rem 1rem',
-                                borderRadius: '10px',
-                                border: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.85rem',
-                                cursor: isOwner ? 'not-allowed' : 'pointer',
-                                background: isOwner ? 'rgba(255,255,255,0.03)' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                color: isOwner ? '#4b5563' : '#fff',
-                                boxShadow: isOwner ? 'none' : '0 4px 10px rgba(16, 185, 129, 0.2)'
-                              }}
-                            >
-                              {isOwner ? 'Tu Anuncio' : 'Comprar'}
-                            </button>
+                            {isOwner ? (
+                              <button
+                                onClick={() => handleCancelOwnOffer(offer.id)}
+                                disabled={submitting}
+                                className="btn-p2p-cancel-own"
+                                style={{
+                                  padding: '0.5rem 1rem',
+                                  borderRadius: '10px',
+                                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                                  fontWeight: 700,
+                                  fontSize: '0.85rem',
+                                  cursor: 'pointer',
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  color: '#ef4444',
+                                  transition: 'all 0.2s',
+                                  boxShadow: '0 4px 10px rgba(239, 68, 68, 0.1)'
+                                }}
+                              >
+                                {submitting ? 'Cancelando...' : 'Cancelar'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setSelectedOfferForBuy(offer)}
+                                disabled={submitting}
+                                className="btn-p2p-buy"
+                                style={{
+                                  padding: '0.5rem 1rem',
+                                  borderRadius: '10px',
+                                  border: 'none',
+                                  fontWeight: 700,
+                                  fontSize: '0.85rem',
+                                  cursor: 'pointer',
+                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                  color: '#fff',
+                                  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
+                                }}
+                              >
+                                Comprar
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -594,9 +772,23 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
           <div className="p2p-modal-card" style={{ maxWidth: '480px', width: '90%' }}>
             <div className="p2p-modal-header">
               <h3 className="p2p-modal-title">Publicar Oferta de Venta</h3>
-              <button className="p2p-modal-close-btn" onClick={() => { setShowCreateOfferModal(false); setMonto(''); setPrecioUnidad(''); }}>&times;</button>
+              <button className="p2p-modal-close-btn" onClick={() => { setShowCreateOfferModal(false); setMonto(''); setPrecioUnidad(''); setModalError(null); }}>&times;</button>
             </div>
             <form onSubmit={handleCreateOffer} className="p2p-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {modalError && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#ef4444',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '12px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  textAlign: 'left'
+                }}>
+                  ⚠️ {modalError}
+                </div>
+              )}
               <div className="form-group">
                 <label>Criptomoneda a vender</label>
                 <select value={moneda} onChange={(e) => setMoneda(e.target.value)} disabled={submitting} className="form-select">
@@ -631,12 +823,12 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
                   <label>Cantidad a vender</label>
                   <input type="number" step="any" min="0.000001" placeholder="ej. 0.05" value={monto} onChange={(e) => setMonto(e.target.value)} disabled={submitting} className="form-input" required />
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
+                <div className="form-group" style={{ flex: 1, minWidth: '160px' }}>
                   <label>Precio Unitario (USD)</label>
                   <input type="number" step="any" min="0.01" placeholder="ej. 65000" value={precioUnidad} onChange={(e) => setPrecioUnidad(e.target.value)} disabled={submitting} className="form-input" required />
                 </div>
@@ -1047,48 +1239,60 @@ export default function MercadoP2P({ session, onNavigate }: MercadoP2PProps) {
               <button className="p2p-modal-close-btn" onClick={() => setShowNotifications(false)}>&times;</button>
             </div>
             <div className="p2p-modal-body" style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {transacciones.length === 0 ? (
+              {combinedAlerts.length === 0 ? (
                 <span style={{ color: '#9ca3af', fontSize: '0.9rem', textAlign: 'center', padding: '2rem 0' }}>No tienes notificaciones recientes.</span>
               ) : (
-                transacciones.slice(0, 10).map((tx) => {
-                  let dotColor = '#9ca3af';
-                  let label = tx.detalle;
-                  if (tx.tipo === 'deposito') {
-                    dotColor = '#22d3ee';
-                    label = `Saldo recargado: +$${Number(tx.monto_usd).toFixed(2)} USD`;
-                  } else if (tx.tipo === 'compra_directa' || tx.tipo === 'compra_p2p') {
-                    dotColor = '#10b981';
-                    label = `Compra exitosa: +${Number(tx.cantidad_cripto).toFixed(4)} ${tx.moneda}`;
-                  } else if (tx.tipo === 'venta_p2p') {
-                    dotColor = '#f59e0b';
-                    label = `Venta P2P completada: +$${Number(tx.monto_usd).toFixed(2)} USD`;
-                  } else if (tx.tipo === 'transferencia_enviada') {
-                    dotColor = '#ef4444';
-                    label = `Transferencia enviada: -${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
-                  } else if (tx.tipo === 'transferencia_recibida') {
-                    dotColor = '#10b981';
-                    label = `Fondos recibidos: +${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
-                  }
-
-                  return (
-                    <div key={tx.id} style={{ display: 'flex', gap: '12px', fontSize: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem', alignItems: 'center', textAlign: 'left' }}>
-                      <span style={{ 
-                        width: '8px', 
-                        height: '8px', 
-                        borderRadius: '50%', 
-                        backgroundColor: dotColor, 
-                        boxShadow: `0 0 6px ${dotColor}`,
-                        flexShrink: 0 
-                      }}></span>
-                      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                        <span style={{ color: '#f3f4f6', fontWeight: 600, lineHeight: 1.3 }}>{label}</span>
-                        <span style={{ color: '#9ca3af', fontSize: '0.75rem', marginTop: '3px' }}>
-                          {new Date(tx.creado_a).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} a las {new Date(tx.creado_a).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {combinedAlerts.slice(0, 15).map((alert) => {
+                    if (alert.tipo === 'admin') {
+                      return (
+                        <div key={alert.id} style={{
+                          background: 'rgba(239, 68, 68, 0.08)',
+                          borderLeft: '3px solid #ef4444',
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          color: '#f3f4f6',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                          textAlign: 'left'
+                        }}>
+                          <span style={{ fontSize: '1.1rem', marginTop: '-2px' }}>⚠️</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, lineHeight: '1.4', fontWeight: 600 }}>{alert.mensaje}</p>
+                            <span style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
+                              {alert.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div key={alert.id} style={{
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          borderLeft: `3px solid ${alert.dotColor}`,
+                          padding: '0.75rem',
+                          borderRadius: '8px',
+                          fontSize: '0.85rem',
+                          color: '#f3f4f6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          textAlign: 'left'
+                        }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: alert.dotColor, flexShrink: 0 }}></div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, lineHeight: '1.4' }}>{alert.mensaje}</p>
+                            <span style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
+                              {alert.fecha.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })}
+                </div>
               )}
             </div>
             <div className="p2p-modal-footer">

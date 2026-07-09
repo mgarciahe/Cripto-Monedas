@@ -325,6 +325,80 @@ export async function buyCrypto(
   }
 }
 
+export interface Notificacion {
+  id: string;
+  usuario_id: string;
+  mensaje: string;
+  leido: boolean;
+  creado_a: string;
+}
+
+/**
+ * Crea una nueva notificación en la tabla 'notificaciones' para un usuario.
+ * Falla silenciosamente con log de advertencia si la tabla no existe en Supabase local.
+ */
+export async function createNotification(userId: string, message: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('notificaciones')
+      .insert({
+        usuario_id: userId,
+        mensaje: message,
+        leido: false
+      });
+    if (error) {
+      console.warn('Error al guardar notificación en Supabase (tabla notificaciones):', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error inesperado al crear notificación:', err);
+    return false;
+  }
+}
+
+/**
+ * Consulta las notificaciones no leídas de un usuario específico.
+ */
+export async function getUserNotifications(userId: string): Promise<Notificacion[]> {
+  try {
+    const { data, error } = await supabase
+      .from('notificaciones')
+      .select('*')
+      .eq('usuario_id', userId)
+      .order('creado_a', { ascending: false });
+
+    if (error) {
+      console.warn('Error al obtener notificaciones de Supabase:', error.message);
+      return [];
+    }
+    return data as Notificacion[];
+  } catch (err) {
+    console.error('Error inesperado al obtener notificaciones:', err);
+    return [];
+  }
+}
+
+/**
+ * Marca todas las notificaciones de un usuario como leídas.
+ */
+export async function markNotificationsAsRead(userId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('notificaciones')
+      .update({ leido: true })
+      .eq('usuario_id', userId);
+    if (error) {
+      console.warn('Error al marcar notificaciones como leídas:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error inesperado al marcar notificaciones:', err);
+    return false;
+  }
+}
+
 export interface Movimiento {
   id: string;
   usuario_id: string;
@@ -399,6 +473,138 @@ export async function getTransactionHistory(userId: string): Promise<{ success: 
     return {
       success: false,
       message: err instanceof Error ? err.message : 'Error al obtener historial de movimientos.'
+    };
+  }
+}
+
+/**
+ * Obtiene el historial global de todos los movimientos de la plataforma (para Administradores).
+ */
+export async function adminGetGlobalTransactions(): Promise<{ success: boolean; message: string; data?: Movimiento[] }> {
+  try {
+    const { data, error } = await supabase
+      .from('movimientos')
+      .select('*')
+      .order('creado_a', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+      message: 'Historial global de movimientos obtenido con éxito.',
+      data: data as Movimiento[]
+    };
+  } catch (err: unknown) {
+    console.error('Error de administración al cargar transacciones globales:', err);
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error al obtener transacciones globales.'
+    };
+  }
+}
+
+/**
+ * Obtiene todas las ofertas de la tabla ofertas_p2p (para Administradores).
+ */
+export async function adminGetAllOffers(): Promise<{ success: boolean; message: string; data?: OfertaP2P[] }> {
+  try {
+    const { data, error } = await supabase
+      .from('ofertas_p2p')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+      message: 'Listado global de ofertas P2P obtenido con éxito.',
+      data: data as OfertaP2P[]
+    };
+  } catch (err: unknown) {
+    console.error('Error de administración al obtener ofertas P2P:', err);
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error al obtener ofertas P2P.'
+    };
+  }
+}
+
+/**
+ * Permite a un administrador actualizar el estado de cualquier oferta P2P (Pausar o Dar de baja),
+ * y envía una notificación personalizada al vendedor informándole del cambio.
+ */
+export async function adminUpdateOfferState(
+  ofertaId: string,
+  nuevoEstado: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // 1. Consultar detalles de la oferta para conocer al vendedor y comprador
+    const { data: oferta, error: getError } = await supabase
+      .from('ofertas_p2p')
+      .select('*')
+      .eq('id', ofertaId)
+      .maybeSingle();
+
+    if (getError) {
+      throw new Error(getError.message);
+    }
+    if (!oferta) {
+      throw new Error('La oferta especificada no existe en el sistema.');
+    }
+
+    // Manejo de la anulación de una transacción completada
+    if (nuevoEstado === 'anulada') {
+      const { error: rpcError } = await supabase.rpc('anular_oferta_p2p', {
+        oferta_uuid: ofertaId
+      });
+
+      if (rpcError) {
+        throw new Error(rpcError.message);
+      }
+
+      return {
+        success: true,
+        message: 'La transacción completada fue anulada y los saldos fueron devueltos a cada usuario.'
+      };
+    }
+
+    // 2. Modificar el estado de la oferta en la base de datos (para otros estados estándares)
+    const { error: updateError } = await supabase
+      .from('ofertas_p2p')
+      .update({ estado: nuevoEstado })
+      .eq('id', ofertaId);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    // 3. Crear notificación informativa de auditoría en la tabla
+    let notifMsg = '';
+    if (nuevoEstado === 'cancelada') {
+      notifMsg = `Tu publicación de venta de ${oferta.monto} ${oferta.moneda_cripto} a $${oferta.precio_unid} USD ha sido dada de baja (eliminada) por el administrador del mercado.`;
+    } else if (nuevoEstado === 'pausada') {
+      notifMsg = `Tu publicación de venta de ${oferta.monto} ${oferta.moneda_cripto} ha sido pausada temporalmente por el administrador.`;
+    } else if (nuevoEstado === 'activa') {
+      notifMsg = `Tu publicación de venta de ${oferta.monto} ${oferta.moneda_cripto} ha sido reactivada por el administrador.`;
+    }
+
+    if (notifMsg) {
+      await createNotification(oferta.vendedor_id, notifMsg);
+    }
+
+    return {
+      success: true,
+      message: `La oferta fue actualizada a estado '${nuevoEstado}' con éxito.`
+    };
+  } catch (err: unknown) {
+    console.error('Error de administración al actualizar oferta P2P:', err);
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Error al actualizar el estado de la oferta.'
     };
   }
 }
