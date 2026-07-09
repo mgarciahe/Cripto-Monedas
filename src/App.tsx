@@ -20,7 +20,6 @@ function App() {
   // Valida si la sesión es legítima para iniciar sesión (evita auto-registro con Google si es nuevo)
   const validateSession = async (s: Session): Promise<boolean> => {
     const user = s.user;
-    const oauthMode = sessionStorage.getItem('oauth_mode');
     
     // Si la cuenta es nueva, created_at y last_sign_in_at tendrán la misma fecha o diferencia menor a 8s
     const isNewUser = user.created_at && user.last_sign_in_at && 
