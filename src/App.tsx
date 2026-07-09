@@ -11,6 +11,14 @@ import Support from './views/Support';
 import { getUserRole } from './services/auth';
 import './App.css';
 
+// Interceptar de forma síncrona la intención en la URL al cargar el JS
+// antes de que Supabase reescriba la barra de direcciones
+const urlParamsInit = new URLSearchParams(window.location.search);
+const oauthModeFromUrl = urlParamsInit.get('oauth_mode');
+if (oauthModeFromUrl) {
+  sessionStorage.setItem('oauth_mode', oauthModeFromUrl);
+}
+
 function App() {
   // 1. Estado de la Sesión con tipado oficial de Supabase
   const [session, setSession] = useState<Session | null>(null);
@@ -21,9 +29,8 @@ function App() {
   const validateSession = async (s: Session): Promise<boolean> => {
     const user = s.user;
     
-    // Obtener la intención desde sessionStorage o desde los parámetros de la URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const oauthMode = sessionStorage.getItem('oauth_mode') || urlParams.get('oauth_mode');
+    // Obtener la intención desde sessionStorage
+    const oauthMode = sessionStorage.getItem('oauth_mode');
     
     // Solo aplicar esta guardia a usuarios que vienen de OAuth con Google
     const isGoogleUser = user.app_metadata?.provider === 'google';
