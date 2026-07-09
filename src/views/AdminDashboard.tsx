@@ -1,12 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { logout } from '../services/auth';
+import { supabase } from '../services/supabase';
 import { 
   adminGetGlobalTransactions, 
   adminGetAllOffers, 
   adminUpdateOfferState 
 } from '../services/wallet';
 import type { Movimiento, OfertaP2P } from '../services/wallet';
+import {
+  getAllTickets,
+  getTicketMessages,
+  sendSupportMessage,
+  subscribeToTicketMessages,
+  subscribeToTickets,
+  type SupportTicket,
+  type SupportMessage
+} from '../services/support';
 import './Dashboard.css';
 
 interface AdminDashboardProps {
@@ -22,6 +32,16 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
+
+  // Estados para Soporte Técnico
+  const [activeTab, setActiveTab] = useState<'auditoria' | 'soporte'>('auditoria');
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [adminReply, setAdminReply] = useState<string>('');
+  const [supportLoading, setSupportLoading] = useState<boolean>(false);
+  const [supportSending, setSupportSending] = useState<boolean>(false);
+  const adminMessagesEndRef = useRef<HTMLDivElement>(null);
 
   const user = session.user;
   const userMetadata = user.user_metadata;
@@ -62,6 +82,125 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Cargar tickets de soporte globales
+  const fetchAllSupportTickets = useCallback(async () => {
+    try {
+      setSupportLoading(true);
+      const data = await getAllTickets();
+      setTickets(data);
+
+      if (selectedTicket) {
+        const updated = data.find(t => t.id === selectedTicket.id);
+        if (updated) setSelectedTicket(updated);
+      }
+    } catch (err) {
+      console.error('Error al consultar tickets en admin:', err);
+    } finally {
+      setSupportLoading(false);
+    }
+  }, [selectedTicket]);
+
+  // Cargar mensajes del ticket seleccionado
+  const fetchTicketMessagesAdmin = useCallback(async (ticketId: string) => {
+    try {
+      const data = await getTicketMessages(ticketId);
+      setMessages(data);
+      scrollAdminChatToBottom();
+    } catch (err) {
+      console.error('Error al cargar mensajes del ticket:', err);
+    }
+  }, []);
+
+  const scrollAdminChatToBottom = () => {
+    setTimeout(() => {
+      adminMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // Escuchar actualizaciones de la lista de tickets
+  useEffect(() => {
+    fetchAllSupportTickets();
+    const sub = subscribeToTickets(() => {
+      fetchAllSupportTickets();
+    });
+    return () => {
+      sub.unsubscribe();
+    };
+  }, []);
+
+  // Escuchar mensajes en tiempo real para el chat activo
+  useEffect(() => {
+    if (!selectedTicket) {
+      setMessages([]);
+      return;
+    }
+
+    fetchTicketMessagesAdmin(selectedTicket.id);
+
+    const sub = subscribeToTicketMessages(selectedTicket.id, (newMsg) => {
+      setMessages((prev) => {
+        if (prev.some(m => m.id === newMsg.id)) return prev;
+        const updated = [...prev, newMsg];
+        scrollAdminChatToBottom();
+        return updated;
+      });
+    });
+
+    return () => {
+      sub.unsubscribe();
+    };
+  }, [selectedTicket, fetchTicketMessagesAdmin]);
+
+  // Enviar respuesta desde soporte
+  const handleSendAdminReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminReply.trim() || !selectedTicket) return;
+
+    const messageText = adminReply.trim();
+    setAdminReply('');
+
+    try {
+      // Mensaje optimista
+      const tempId = Math.random().toString();
+      const optMsg: SupportMessage = {
+        id: tempId,
+        ticket_id: selectedTicket.id,
+        remitente_id: session.user.id,
+        es_admin: true,
+        mensaje: messageText,
+        creado_a: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, optMsg]);
+      scrollAdminChatToBottom();
+
+      await sendSupportMessage(selectedTicket.id, session.user.id, true, messageText);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo enviar la respuesta.');
+    }
+  };
+
+  // Cerrar caso de soporte
+  const handleCloseTicket = async (ticketId: string) => {
+    const confirmClose = window.confirm("¿Estás seguro de que deseas marcar esta conversación de soporte como RESUELTA/CERRADA?");
+    if (confirmClose) {
+      try {
+        const { error } = await supabase
+          .from('soporte_tickets')
+          .update({ estado: 'cerrado', actualizado_a: new Date().toISOString() })
+          .eq('id', ticketId);
+        
+        if (error) throw error;
+        
+        await sendSupportMessage(ticketId, session.user.id, true, "Esta conversación de soporte ha sido marcada como resuelta y cerrada por el administrador.");
+        await fetchAllSupportTickets();
+      } catch (err) {
+        console.error(err);
+        alert('Error al cerrar el caso.');
+      }
+    }
+  };
 
   const handleLogoutClick = async () => {
     const confirmation = window.confirm("¿Estás seguro de que deseas cerrar la sesión de administración?");
@@ -241,8 +380,45 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
           </div>
         )}
 
+        {/* Tabs de navegación para el Admin */}
+        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+          <button
+            onClick={() => setActiveTab('auditoria')}
+            style={{
+              background: activeTab === 'auditoria' ? 'rgba(239, 68, 68, 0.12)' : 'transparent',
+              border: activeTab === 'auditoria' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid transparent',
+              borderRadius: '8px',
+              color: activeTab === 'auditoria' ? '#ef4444' : '#9ca3af',
+              padding: '0.5rem 1.25rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            📊 Auditoría y Mercado
+          </button>
+          <button
+            onClick={() => setActiveTab('soporte')}
+            style={{
+              background: activeTab === 'soporte' ? 'rgba(239, 68, 68, 0.12)' : 'transparent',
+              border: activeTab === 'soporte' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid transparent',
+              borderRadius: '8px',
+              color: activeTab === 'soporte' ? '#ef4444' : '#9ca3af',
+              padding: '0.5rem 1.25rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              transition: 'all 0.2s'
+            }}
+          >
+            💬 Soporte Técnico
+          </button>
+        </div>
+
         {/* 3. CONTENT PANELS */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+        {activeTab === 'auditoria' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           
           {/* SECCIÓN 1: AUDITORÍA GLOBAL DE TRANSACCIONES */}
           <div className="glass-card" style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -506,7 +682,254 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
             </div>
           </div>
           
-        </div>
+          </div>
+        ) : (
+          /* PANELES DE SOPORTE TÉCNICO */
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '340px 1fr',
+            gap: '1.5rem',
+            minHeight: '600px',
+            textAlign: 'left'
+          }}>
+            {/* Lista de tickets de soporte */}
+            <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', maxHeight: '700px' }}>
+              <h3 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: 800, margin: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                Casos de Soporte
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', flex: 1 }}>
+                {supportLoading && tickets.length === 0 ? (
+                  <span style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center' }}>Cargando casos...</span>
+                ) : tickets.length === 0 ? (
+                  <span style={{ color: '#6b7280', fontSize: '0.85rem', textAlign: 'center', fontStyle: 'italic' }}>No hay solicitudes de soporte técnico.</span>
+                ) : (
+                  tickets.map((t) => {
+                    const isSelected = selectedTicket?.id === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => setSelectedTicket(t)}
+                        style={{
+                          padding: '1rem',
+                          borderRadius: '12px',
+                          border: isSelected ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.05)',
+                          background: isSelected ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 255, 255, 0.01)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                          <span style={{
+                            fontSize: '0.7rem',
+                            background: t.estado === 'abierto' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(107, 114, 128, 0.15)',
+                            color: t.estado === 'abierto' ? '#10b981' : '#9ca3af',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '6px',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase'
+                          }}>{t.estado}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>
+                            {new Date(t.creado_a).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.9rem', color: '#fff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.titulo}
+                        </h4>
+                        <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontFamily: 'monospace' }}>
+                          Ref: {t.user_email || 'Usuario'}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Chat del ticket seleccionado */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', maxHeight: '700px' }}>
+              {selectedTicket ? (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1 }}>
+                  {/* Header Chat Admin */}
+                  <div style={{
+                    padding: '1.25rem 1.5rem',
+                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                    background: 'rgba(255,255,255,0.01)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>{selectedTicket.titulo}</h4>
+                      <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Usuario ID: {selectedTicket.usuario_id}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                      {selectedTicket.estado === 'abierto' && (
+                        <button
+                          onClick={() => handleCloseTicket(selectedTicket.id)}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: '8px',
+                            color: '#ef4444',
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Cerrar Ticket
+                        </button>
+                      )}
+                      <span style={{
+                        fontSize: '0.7rem',
+                        background: selectedTicket.estado === 'abierto' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(107, 114, 128, 0.15)',
+                        color: selectedTicket.estado === 'abierto' ? '#10b981' : '#9ca3af',
+                        padding: '0.25rem 0.6rem',
+                        borderRadius: '6px',
+                        fontWeight: 'bold',
+                        textTransform: 'uppercase'
+                      }}>{selectedTicket.estado}</span>
+                    </div>
+                  </div>
+
+                  {/* Mensajes Chat Admin */}
+                  <div style={{
+                    flex: 1,
+                    padding: '1.5rem',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    background: 'rgba(10, 5, 20, 0.25)',
+                    minHeight: '400px'
+                  }}>
+                    {messages.map((msg) => {
+                      const isMyMessage = msg.es_admin; // Es el admin
+                      return (
+                        <div
+                          key={msg.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: isMyMessage ? 'flex-end' : 'flex-start',
+                            width: '100%'
+                          }}
+                        >
+                          <div style={{ maxWidth: '70%' }}>
+                            <div style={{
+                              fontSize: '0.7rem',
+                              color: '#9ca3af',
+                              marginBottom: '4px',
+                              display: 'flex',
+                              gap: '8px',
+                              justifyContent: isMyMessage ? 'flex-end' : 'flex-start'
+                            }}>
+                              <span style={{ fontWeight: 'bold', color: isMyMessage ? '#ef4444' : '#06b6d4' }}>
+                                {isMyMessage ? 'Tú (Soporte)' : 'Usuario'}
+                              </span>
+                              <span>
+                                {new Date(msg.creado_a).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+
+                            <div style={{
+                              background: isMyMessage
+                                ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                                : 'rgba(255, 255, 255, 0.05)',
+                              border: isMyMessage ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+                              padding: '0.85rem 1.15rem',
+                              borderRadius: isMyMessage ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
+                              color: '#fff',
+                              fontSize: '0.9rem',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              boxShadow: isMyMessage ? '0 4px 10px rgba(239, 68, 68, 0.15)' : 'none'
+                            }}>
+                              {msg.mensaje}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={adminMessagesEndRef} />
+                  </div>
+
+                  {/* Input Chat Admin */}
+                  {selectedTicket.estado === 'abierto' ? (
+                    <form onSubmit={handleSendAdminReply} style={{
+                      padding: '1rem 1.5rem',
+                      borderTop: '1px solid rgba(255,255,255,0.06)',
+                      background: 'rgba(25, 20, 38, 0.3)',
+                      display: 'flex',
+                      gap: '0.75rem'
+                    }}>
+                      <input
+                        type="text"
+                        placeholder="Escribe la respuesta del soporte..."
+                        value={adminReply}
+                        onChange={(e) => setAdminReply(e.target.value)}
+                        style={{
+                          flex: 1,
+                          background: 'rgba(15, 10, 25, 0.6)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '12px',
+                          padding: '0.75rem 1rem',
+                          color: '#fff',
+                          fontSize: '0.9rem',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        style={{
+                          background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                          border: 'none',
+                          color: '#fff',
+                          borderRadius: '12px',
+                          padding: '0 1.5rem',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)'
+                        }}
+                      >
+                        Responder
+                      </button>
+                    </form>
+                  ) : (
+                    <div style={{
+                      padding: '1.25rem',
+                      textAlign: 'center',
+                      color: '#6b7280',
+                      fontSize: '0.85rem',
+                      background: 'rgba(25,20,38,0.2)',
+                      borderTop: '1px solid rgba(255,255,255,0.06)',
+                      fontStyle: 'italic'
+                    }}>
+                      Caso cerrado.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  color: '#9ca3af',
+                  padding: '2rem',
+                  textAlign: 'center',
+                  minHeight: '450px'
+                }}>
+                  💬
+                  <h4 style={{ margin: '0.5rem 0 0 0', color: '#fff' }}>Centro de Mensajería de Soporte</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem' }}>Selecciona una consulta de la lista izquierda para responder al usuario.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <footer className="dashboard-footer">
           <p>© 2026 Mi Billetera Virtual. Panel de control financiero seguro de administración.</p>

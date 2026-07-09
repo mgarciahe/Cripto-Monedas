@@ -7,6 +7,7 @@ import MercadoP2P from './views/MercadoP2P';
 import Login from './views/Login';
 import AdminDashboard from './views/AdminDashboard';
 import Profile from './views/Profile';
+import Support from './views/Support';
 import { getUserRole } from './services/auth';
 import './App.css';
 
@@ -204,6 +205,7 @@ function App() {
           {currentView === 'p2p' && <MercadoP2P session={session} onNavigate={handleNavigate} userRole={userRole} />}
           {currentView === 'admin' && <AdminDashboard session={session} onNavigate={handleNavigate} userRole={userRole} />}
           {currentView === 'profile' && <Profile session={session} onNavigate={handleNavigate} userRole={userRole} />}
+          {currentView === 'support' && <Support session={session} onNavigate={handleNavigate} userRole={userRole} />}
           {(currentView === 'login' || currentView === 'register' || currentView === 'invitado') && <Dashboard session={session} onNavigate={handleNavigate} userRole={userRole} />}
         </>
       ) : (
