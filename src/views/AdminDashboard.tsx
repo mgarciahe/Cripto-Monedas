@@ -25,7 +25,7 @@ interface AdminDashboardProps {
   userRole?: string | null;
 }
 
-export default function AdminDashboard({ session, onNavigate, userRole }: AdminDashboardProps) {
+export default function AdminDashboard({ session, onNavigate }: AdminDashboardProps) {
   const [transacciones, setTransacciones] = useState<Movimiento[]>([]);
   const [ofertas, setOfertas] = useState<OfertaP2P[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -40,7 +40,6 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [adminReply, setAdminReply] = useState<string>('');
   const [supportLoading, setSupportLoading] = useState<boolean>(false);
-  const [supportSending, setSupportSending] = useState<boolean>(false);
   const adminMessagesEndRef = useRef<HTMLDivElement>(null);
 
   const user = session.user;

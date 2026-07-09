@@ -5,7 +5,7 @@ import type { Billetera } from '../services/supabase';
 import { getCryptoPrices } from '../services/prices';
 import type { PreciosCripto } from '../services/prices';
 import { logout } from '../services/auth';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import './Dashboard.css';
 
 interface ProfileProps {
