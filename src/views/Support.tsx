@@ -144,19 +144,6 @@ export default function Support({ session, onNavigate, userRole }: SupportProps)
     setChatMessage('');
 
     try {
-      // Agregar localmente de forma optimista
-      const tempId = Math.random().toString();
-      const optMsg: SupportMessage = {
-        id: tempId,
-        ticket_id: selectedTicket.id,
-        remitente_id: user.id,
-        es_admin: false,
-        mensaje: messageText,
-        creado_a: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, optMsg]);
-      scrollToBottom();
-
       // Enviar a la base de datos
       await sendSupportMessage(selectedTicket.id, user.id, false, messageText);
     } catch (err) {

@@ -161,19 +161,6 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
     setAdminReply('');
 
     try {
-      // Mensaje optimista
-      const tempId = Math.random().toString();
-      const optMsg: SupportMessage = {
-        id: tempId,
-        ticket_id: selectedTicket.id,
-        remitente_id: session.user.id,
-        es_admin: true,
-        mensaje: messageText,
-        creado_a: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, optMsg]);
-      scrollAdminChatToBottom();
-
       await sendSupportMessage(selectedTicket.id, session.user.id, true, messageText);
     } catch (err) {
       console.error(err);
@@ -275,7 +262,7 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
       {/* 1. LEFT SIDEBAR */}
       <aside className="sidebar-container">
         <div className="sidebar-logo" style={{ color: '#ef4444' }}>
-          <span className="logo-icon">🔒</span> Panel Admin
+          Panel Admin
         </div>
         <nav className="sidebar-menu">
           <button className="menu-item" onClick={() => onNavigate('welcome')}>
@@ -396,7 +383,7 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
               transition: 'all 0.2s'
             }}
           >
-            📊 Auditoría y Mercado
+            Auditoría y Mercado
           </button>
           <button
             onClick={() => setActiveTab('soporte')}
@@ -412,7 +399,7 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
               transition: 'all 0.2s'
             }}
           >
-            💬 Soporte Técnico
+            Soporte Técnico
           </button>
         </div>
 
@@ -736,8 +723,8 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
                         <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '0.9rem', color: '#fff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {t.titulo}
                         </h4>
-                        <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontFamily: 'monospace' }}>
-                          Ref: {t.user_email || 'Usuario'}
+                        <span style={{ fontSize: '0.75rem', color: '#f3f4f6', fontWeight: 'bold', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          De: {t.user_name || t.user_email || 'Usuario'}
                         </span>
                       </div>
                     );
@@ -760,8 +747,15 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
                     alignItems: 'center'
                   }}>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#fff' }}>{selectedTicket.titulo}</h4>
-                      <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Usuario ID: {selectedTicket.usuario_id}</span>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '1.05rem', color: '#fff' }}>{selectedTicket.titulo}</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#f3f4f6', fontWeight: 'bold' }}>
+                          Usuario: {selectedTicket.user_name || selectedTicket.user_email || 'Usuario'}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#9ca3af', fontFamily: 'monospace' }}>
+                          Usuario ID: {selectedTicket.usuario_id}
+                        </span>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -826,7 +820,7 @@ export default function AdminDashboard({ session, onNavigate, userRole }: AdminD
                               justifyContent: isMyMessage ? 'flex-end' : 'flex-start'
                             }}>
                               <span style={{ fontWeight: 'bold', color: isMyMessage ? '#ef4444' : '#06b6d4' }}>
-                                {isMyMessage ? 'Tú (Soporte)' : 'Usuario'}
+                                {isMyMessage ? 'Tú (Soporte)' : (selectedTicket.user_name || 'Usuario')}
                               </span>
                               <span>
                                 {new Date(msg.creado_a).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

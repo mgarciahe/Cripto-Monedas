@@ -81,25 +81,32 @@ export async function getAllTickets(): Promise<SupportTicket[]> {
   if (ticketError) throw ticketError;
   if (!tickets) return [];
 
-  // Enriquecer con los correos de los usuarios
+  // Enriquecer con los datos de perfiles de los usuarios
   const enrichedTickets = await Promise.all(
     tickets.map(async (t) => {
       try {
-        // Consultar el perfil en la tabla de billeteras o el metadata si está disponible
-        const { data: walletData } = await supabase
-          .from('billeteras')
+        const { data: profileData } = await supabase
+          .from('perfiles')
           .select('*')
-          .eq('usuario_id', t.usuario_id)
+          .eq('id', t.usuario_id)
           .maybeSingle();
 
-        // Si no se puede, al menos se muestra el ID
-        return {
-          ...t,
-          user_email: walletData ? `Usuario #${t.usuario_id.substring(0, 6)}` : 'Usuario de la Plataforma'
-        };
-      } catch {
-        return t;
+        if (profileData) {
+          const name = (profileData as any).nombre_completo || (profileData as any).nombre || (profileData as any).full_name || profileData.email || `Usuario #${t.usuario_id.substring(0, 6)}`;
+          return {
+            ...t,
+            user_name: name,
+            user_email: profileData.email || 'Sin correo'
+          };
+        }
+      } catch (err) {
+        console.error('Error al obtener perfil en soporte:', err);
       }
+      return {
+        ...t,
+        user_name: `Usuario #${t.usuario_id.substring(0, 6)}`,
+        user_email: 'Usuario de la Plataforma'
+      };
     })
   );
 
@@ -162,11 +169,13 @@ export function subscribeToTicketMessages(ticketId: string, onNewMessage: (msg: 
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'soporte_mensajes',
-        filter: `ticket_id=eq.${ticketId}`
+        table: 'soporte_mensajes'
       },
       (payload) => {
-        onNewMessage(payload.new as SupportMessage);
+        const newMsg = payload.new as SupportMessage;
+        if (newMsg.ticket_id === ticketId) {
+          onNewMessage(newMsg);
+        }
       }
     )
     .subscribe();
