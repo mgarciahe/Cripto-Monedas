@@ -36,16 +36,6 @@ function App() {
       
       // Redirigir a registro
       setCurrentView('register');
-      
-      // Evitar alertas duplicadas mediante un lock en sessionStorage
-      const hasAlerted = sessionStorage.getItem('has_alerted_unregistered');
-      if (!hasAlerted) {
-        sessionStorage.setItem('has_alerted_unregistered', 'true');
-        alert("Esta cuenta de Google no está registrada. Por favor, regístrate primero.");
-        setTimeout(() => {
-          sessionStorage.removeItem('has_alerted_unregistered');
-        }, 3000);
-      }
       return false;
     }
 
