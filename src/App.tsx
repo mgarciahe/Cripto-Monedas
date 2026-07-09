@@ -20,7 +20,10 @@ function App() {
   // Valida si la sesión es legítima para iniciar sesión (evita auto-registro con Google si es nuevo)
   const validateSession = async (s: Session): Promise<boolean> => {
     const user = s.user;
-    const oauthMode = sessionStorage.getItem('oauth_mode');
+    
+    // Obtener la intención desde sessionStorage o desde los parámetros de la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthMode = sessionStorage.getItem('oauth_mode') || urlParams.get('oauth_mode');
     
     // Solo aplicar esta guardia a usuarios que vienen de OAuth con Google
     const isGoogleUser = user.app_metadata?.provider === 'google';

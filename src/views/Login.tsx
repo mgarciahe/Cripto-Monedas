@@ -32,8 +32,9 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
     try {
       setLoading(true);
       setErrorMsg(null);
-      sessionStorage.setItem('oauth_mode', isRegisterMode ? 'register' : 'login');
-      await signInWithGoogle();
+      const mode = isRegisterMode ? 'register' : 'login';
+      sessionStorage.setItem('oauth_mode', mode);
+      await signInWithGoogle(mode);
     } catch (err: unknown) {
       console.error('Error al iniciar sesión con Google:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Error inesperado con Google Login.');

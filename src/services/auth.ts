@@ -4,11 +4,11 @@ import { supabase } from './supabase';
  * Inicia el flujo de autenticación con Google a través de Supabase OAuth.
  * Redirige al usuario al origen actual una vez completado el flujo.
  */
-export async function signInWithGoogle() {
+export async function signInWithGoogle(mode: 'login' | 'register' = 'login') {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin,
+      redirectTo: `${window.location.origin}?oauth_mode=${mode}`,
       queryParams: {
         prompt: 'select_account',
       },
