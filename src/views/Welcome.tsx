@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { signInWithGoogle } from '../services/auth';
 import './Welcome.css';
 
 interface WelcomeProps {
@@ -43,16 +42,6 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
     setTimeout(() => setCopiedAddress(false), 2000);
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setErrorMsg(null);
-      sessionStorage.setItem('oauth_mode', 'login');
-      await signInWithGoogle();
-    } catch (err: any) {
-      console.error('Error al iniciar sesión con Google:', err);
-      setErrorMsg(err.message || 'Ocurrió un error inesperado al intentar iniciar sesión.');
-    }
-  };
 
   const viewsInfo = {
     wallet: {
