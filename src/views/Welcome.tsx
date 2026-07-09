@@ -46,6 +46,7 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
   const handleGoogleLogin = async () => {
     try {
       setErrorMsg(null);
+      sessionStorage.setItem('oauth_mode', 'login');
       await signInWithGoogle();
     } catch (err: any) {
       console.error('Error al iniciar sesión con Google:', err);

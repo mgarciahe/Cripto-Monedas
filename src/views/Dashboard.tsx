@@ -52,6 +52,10 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   const [txHistoryLoading, setTxHistoryLoading] = useState<boolean>(false);
   const [txHistoryError, setTxHistoryError] = useState<string | null>(null);
 
+  // Estados para las notificaciones
+  const [showNotifications, setShowNotifications] = useState<boolean>(false);
+  const [hasNewNotifications, setHasNewNotifications] = useState<boolean>(false);
+
   const user = session.user;
   const userMetadata = user.user_metadata;
   
@@ -77,13 +81,22 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
   }, [user.id]);
 
   // Función para obtener historial de movimientos
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactions = useCallback(async (showLoading = false) => {
     try {
-      setTxHistoryLoading(true);
+      if (showLoading) setTxHistoryLoading(true);
       setTxHistoryError(null);
       const res = await getTransactionHistory(user.id);
       if (res.success && res.data) {
         setTransacciones(res.data);
+        
+        // Verificar si hay una transacción más nueva que la última vista
+        const lastSeen = localStorage.getItem(`lastSeenTx:${user.id}`);
+        if (res.data.length > 0) {
+          const latestTxId = res.data[0].id;
+          if (lastSeen !== latestTxId) {
+            setHasNewNotifications(true);
+          }
+        }
       } else if (!res.success) {
         setTxHistoryError(res.message);
       }
@@ -91,19 +104,29 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
       console.error('Error al cargar historial de movimientos:', err);
       setTxHistoryError(err instanceof Error ? err.message : 'Error al obtener transacciones.');
     } finally {
-      setTxHistoryLoading(false);
+      if (showLoading) setTxHistoryLoading(false);
     }
   }, [user.id]);
 
   useEffect(() => {
     if (showTxHistory) {
-      fetchTransactions();
+      fetchTransactions(true);
     }
   }, [showTxHistory, fetchTransactions]);
 
   useEffect(() => {
+    // Carga inicial
     fetchWallet(true);
-  }, [fetchWallet]);
+    fetchTransactions(false);
+
+    // Polling en segundo plano cada 10 segundos
+    const interval = setInterval(() => {
+      fetchWallet(false);
+      fetchTransactions(false);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [fetchWallet, fetchTransactions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -249,6 +272,14 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
     }
   };
 
+  const handleToggleNotifications = () => {
+    setShowNotifications(!showNotifications);
+    if (!showNotifications && transacciones.length > 0) {
+      localStorage.setItem(`lastSeenTx:${user.id}`, transacciones[0].id);
+      setHasNewNotifications(false);
+    }
+  };
+
   const handleCopyWallet = () => {
     navigator.clipboard.writeText(user.id);
     setCopied(true);
@@ -278,6 +309,78 @@ export default function Dashboard({ session, onNavigate }: DashboardProps) {
           AetherWallet
         </div>
         <div className="user-profile-header">
+          {/* Campana de Notificaciones */}
+          <div className="notifications-bell-container" style={{ position: 'relative', marginRight: '1rem' }}>
+            <button className="bell-button" onClick={handleToggleNotifications} style={{ background: 'none', border: 'none', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0.5rem', borderRadius: '10px', transition: 'all 0.2s' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                {hasNewNotifications && (
+                  <span className="bell-badge" style={{ position: 'absolute', top: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', border: '2px solid #0b0813', boxShadow: '0 0 8px #ef4444' }}></span>
+                )}
+              </div>
+              <span className="bell-text" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Notificaciones</span>
+            </button>
+
+            {/* Dropdown de Notificaciones */}
+            {showNotifications && (
+              <div className="notifications-dropdown glass-card" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.75rem', width: '340px', zIndex: 1000, padding: '1.25rem', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', background: 'rgba(25, 20, 38, 0.95)', boxShadow: '0 15px 35px rgba(0,0,0,0.6)', backdropFilter: 'blur(20px)', boxSizing: 'border-box' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 0.8rem 0', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Notificaciones</h4>
+                  {hasNewNotifications && (
+                    <span style={{ fontSize: '0.7rem', background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: '10px', fontWeight: 700 }}>NUEVO</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '250px', overflowY: 'auto' }}>
+                  {transacciones.length === 0 ? (
+                    <span style={{ color: '#9ca3af', fontSize: '0.8rem', textAlign: 'center', padding: '1.5rem 0' }}>No tienes notificaciones recientes.</span>
+                  ) : (
+                    transacciones.slice(0, 5).map((tx) => {
+                      let dotColor = '#9ca3af';
+                      let label = tx.detalle;
+                      if (tx.tipo === 'deposito') {
+                        dotColor = '#22d3ee';
+                        label = `Saldo recargado: +$${Number(tx.monto_usd).toFixed(2)} USD`;
+                      } else if (tx.tipo === 'compra_directa' || tx.tipo === 'compra_p2p') {
+                        dotColor = '#10b981';
+                        label = `Compra exitosa: +${Number(tx.cantidad_cripto).toFixed(4)} ${tx.moneda}`;
+                      } else if (tx.tipo === 'venta_p2p') {
+                        dotColor = '#f59e0b';
+                        label = `Venta P2P completada: +$${Number(tx.monto_usd).toFixed(2)} USD`;
+                      } else if (tx.tipo === 'transferencia_enviada') {
+                        dotColor = '#ef4444';
+                        label = `Transferencia enviada: -${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
+                      } else if (tx.tipo === 'transferencia_recibida') {
+                        dotColor = '#10b981';
+                        label = `Fondos recibidos: +${tx.cantidad_cripto ? Number(tx.cantidad_cripto).toFixed(4) + ' ' + tx.moneda : '$' + Number(tx.monto_usd).toFixed(2) + ' USD'}`;
+                      }
+
+                      return (
+                        <div key={tx.id} style={{ display: 'flex', gap: '12px', fontSize: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '0.6rem', alignItems: 'center', textAlign: 'left' }}>
+                          <span style={{ 
+                            width: '8px', 
+                            height: '8px', 
+                            borderRadius: '50%', 
+                            backgroundColor: dotColor, 
+                            boxShadow: `0 0 6px ${dotColor}`,
+                            flexShrink: 0 
+                          }}></span>
+                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                            <span style={{ color: '#f3f4f6', fontWeight: 600, lineHeight: 1.3 }}>{label}</span>
+                            <span style={{ color: '#9ca3af', fontSize: '0.7rem', marginTop: '3px' }}>
+                              {new Date(tx.creado_a).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} a las {new Date(tx.creado_a).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="user-details">
             <span className="user-name">{fullName}</span>
             <span className="user-email">{email}</span>

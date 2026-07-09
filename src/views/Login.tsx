@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail } from '../services/auth';
+import { supabase } from '../services/supabase';
 import './Login.css';
 
 interface LoginProps {
@@ -29,6 +30,7 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
     try {
       setLoading(true);
       setErrorMsg(null);
+      sessionStorage.setItem('oauth_mode', isRegisterMode ? 'register' : 'login');
       await signInWithGoogle();
     } catch (err: unknown) {
       console.error('Error al iniciar sesión con Google:', err);
@@ -73,6 +75,28 @@ export default function Login({ onNavigate, initialRegisterMode }: LoginProps) {
         setConfirmPassword('');
         setFullName('');
       } else {
+        // Verificar si el correo ya está registrado en perfiles
+        const { data: profile, error: profileErr } = await supabase
+          .from('perfiles')
+          .select('id')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+
+        if (profileErr) {
+          console.error('Error al verificar perfil:', profileErr);
+        }
+
+        if (!profile) {
+          setErrorMsg('Este correo electrónico no está registrado. Por favor, regístrate primero.');
+          setLoading(false);
+          // Redirigir a la página de registro después de 2.5 segundos
+          setTimeout(() => {
+            setIsRegisterMode(true);
+            setErrorMsg(null);
+          }, 2500);
+          return;
+        }
+
         // Iniciar sesión
         await signInWithEmail(email.trim(), password.trim());
       }

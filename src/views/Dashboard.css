@@ -687,3 +687,41 @@
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
+
+/* Notificaciones Bell Styles */
+.bell-button {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--text-secondary) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  padding: 0.55rem 0.95rem !important;
+  border-radius: 12px !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.bell-button:hover {
+  background: var(--glass-bg-hover) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: var(--text-primary) !important;
+  transform: translateY(-1px) !important;
+}
+
+.bell-button svg {
+  transition: transform 0.2s ease !important;
+}
+
+.bell-button:hover svg {
+  transform: rotate(15deg) !important;
+}
+
+.notifications-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.notifications-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}

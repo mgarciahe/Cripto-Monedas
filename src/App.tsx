@@ -12,16 +12,66 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [currentView, setCurrentView] = useState<string>('welcome');
 
+  // Valida si la sesión es legítima para iniciar sesión (evita auto-registro con Google si es nuevo)
+  const validateSession = async (s: Session): Promise<boolean> => {
+    const user = s.user;
+    const oauthMode = sessionStorage.getItem('oauth_mode');
+    
+    // Si la cuenta es nueva, created_at y last_sign_in_at tendrán la misma fecha o diferencia menor a 8s
+    const isNewUser = user.created_at && user.last_sign_in_at && 
+      (new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime() < 8000);
+
+    if (isNewUser && (oauthMode === 'login' || !oauthMode)) {
+      console.warn("Usuario nuevo de Google detectado intentando ingresar en iniciar sesión. Cancelando...");
+      sessionStorage.removeItem('oauth_mode');
+      
+      // Cerrar sesión
+      await supabase.auth.signOut();
+      setSession(null);
+      
+      // Redirigir a registro
+      setCurrentView('register');
+      
+      // Evitar alertas duplicadas mediante un lock en sessionStorage
+      const hasAlerted = sessionStorage.getItem('has_alerted_unregistered');
+      if (!hasAlerted) {
+        sessionStorage.setItem('has_alerted_unregistered', 'true');
+        alert("Esta cuenta de Google no está registrada. Por favor, regístrate primero.");
+        setTimeout(() => {
+          sessionStorage.removeItem('has_alerted_unregistered');
+        }, 3000);
+      }
+      return false;
+    }
+
+    sessionStorage.removeItem('oauth_mode');
+    return true;
+  };
+
   // 2. Suscripción de Auth al montar la aplicación
   useEffect(() => {
     // Obtener la sesión actual inicialmente
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
+      if (currentSession) {
+        const isValid = await validateSession(currentSession);
+        if (isValid) {
+          setSession(currentSession);
+        }
+      } else {
+        setSession(null);
+      }
     });
 
     // Escuchar cambios de estado en la sesión
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(currentSession);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (currentSession) {
+        const isValid = await validateSession(currentSession);
+        if (isValid) {
+          setSession(currentSession);
+        }
+      } else {
+        setSession(null);
+      }
     });
 
     // Limpiar suscripción al desmontar
