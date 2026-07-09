@@ -60,9 +60,6 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
   const [buyError, setBuyError] = useState<string | null>(null);
   const [buySuccess, setBuySuccess] = useState<string | null>(null);
 
-  // Estado para el popup de bienvenida (solo primera vez)
-  const [showWelcomePopup, setShowWelcomePopup] = useState<boolean>(false);
-
   // Estados para el historial de transacciones
   const [showTxHistory, setShowTxHistory] = useState<boolean>(false);
   const [transacciones, setTransacciones] = useState<Movimiento[]>([]);
@@ -147,26 +144,6 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
       fetchTransactions(true);
     }
   }, [showTxHistory, fetchTransactions]);
-
-  // Detectar primera visita del usuario y mostrar popup de bienvenida
-  useEffect(() => {
-    if (user.id && user.id !== 'guest-user-id') {
-      const key = `welcome_shown:${user.id}`;
-
-      // La cuenta debe tener menos de 5 minutos de antigüedad para ser considerada "nueva"
-      const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
-      const now = Date.now();
-      const isNewAccount = (now - createdAt) < 5 * 60 * 1000; // 5 minutos
-
-      if (isNewAccount && !localStorage.getItem(key)) {
-        setShowWelcomePopup(true);
-        localStorage.setItem(key, 'true');
-      } else {
-        // Aseguramos que la clave exista para sesiones futuras
-        localStorage.setItem(key, 'true');
-      }
-    }
-  }, [user.id, user.created_at]);
 
   const combinedAlerts = useMemo(() => {
     const alerts: Array<{
@@ -756,167 +733,6 @@ export default function Dashboard({ session, onNavigate, userRole }: DashboardPr
       {/* Glow Ambient Effects */}
       <div className="dash-glow sphere-purple"></div>
       <div className="dash-glow sphere-cyan"></div>
-
-      {/* POPUP DE BIENVENIDA - Solo primera vez */}
-      {showWelcomePopup && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(5, 2, 15, 0.85)',
-          backdropFilter: 'blur(12px)',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem',
-          animation: 'fadeIn 0.4s ease'
-        }}>
-          <div style={{
-            background: 'linear-gradient(145deg, rgba(30, 15, 55, 0.98) 0%, rgba(15, 10, 30, 0.98) 100%)',
-            border: '1px solid rgba(168, 85, 247, 0.35)',
-            borderRadius: '24px',
-            padding: '3rem 2.5rem',
-            maxWidth: '480px',
-            width: '100%',
-            textAlign: 'center',
-            boxShadow: '0 0 60px rgba(168, 85, 247, 0.25), 0 25px 50px rgba(0,0,0,0.6)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            {/* Decorative top glow */}
-            <div style={{
-              position: 'absolute',
-              top: '-60px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '200px',
-              height: '200px',
-              background: 'radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%)',
-              pointerEvents: 'none'
-            }} />
-
-            {/* Wallet icon */}
-            <div style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: '20px',
-              background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%)',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.5rem',
-              boxShadow: '0 0 30px rgba(168, 85, 247, 0.3)'
-            }}>
-              <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 10V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v4" />
-                <rect x="3" y="10" width="18" height="10" rx="2" />
-                <path d="M17 14h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
-                <circle cx="18" cy="15" r="1.2" fill="#a855f7" />
-              </svg>
-            </div>
-
-            {/* Badge */}
-            <div style={{
-              display: 'inline-block',
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
-              borderRadius: '20px',
-              padding: '0.3rem 1rem',
-              fontSize: '0.75rem',
-              color: '#10b981',
-              fontWeight: 700,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
-              marginBottom: '1.25rem'
-            }}>
-              ¡Bono de Bienvenida!
-            </div>
-
-            {/* Title */}
-            <h2 style={{
-              fontSize: '1.65rem',
-              fontWeight: 900,
-              color: '#fff',
-              margin: '0 0 0.75rem 0',
-              lineHeight: 1.2,
-              letterSpacing: '-0.5px'
-            }}>
-              Bienvenido a tu<br />
-              <span style={{ background: 'linear-gradient(135deg, #a855f7, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Billetera Virtual
-              </span>
-            </h2>
-
-            {/* Amount highlight */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              borderRadius: '16px',
-              padding: '1rem 1.5rem',
-              margin: '1.25rem 0',
-            }}>
-              <p style={{ margin: 0, color: '#9ca3af', fontSize: '0.85rem', marginBottom: '4px' }}>
-                Por crear tu cuenta has obtenido
-              </p>
-              <p style={{
-                margin: 0,
-                fontSize: '2.2rem',
-                fontWeight: 900,
-                color: '#10b981',
-                letterSpacing: '-1px',
-                fontFamily: 'monospace'
-              }}>
-                $10,000
-              </p>
-              <p style={{ margin: '4px 0 0 0', color: '#6ee7b7', fontSize: '0.8rem' }}>
-                dólares disponibles en tu billetera
-              </p>
-            </div>
-
-            {/* Message */}
-            <p style={{
-              color: '#9ca3af',
-              fontSize: '0.9rem',
-              lineHeight: 1.6,
-              margin: '0 0 2rem 0'
-            }}>
-              Utilízalos en transacciones para compra de criptomonedas como Bitcoin, Ethereum y Solana.
-              <br /><br />
-              <span style={{ color: '#d1d5db' }}>Gracias por ser parte de <strong style={{ color: '#a855f7' }}>Billetera Virtual</strong>.</span>
-            </p>
-
-            {/* CTA Button */}
-            <button
-              onClick={() => setShowWelcomePopup(false)}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
-                border: 'none',
-                borderRadius: '14px',
-                color: '#fff',
-                fontSize: '1rem',
-                fontWeight: 700,
-                padding: '0.9rem 2rem',
-                cursor: 'pointer',
-                boxShadow: '0 8px 25px rgba(168, 85, 247, 0.35)',
-                transition: 'all 0.2s ease',
-                letterSpacing: '0.5px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 12px 30px rgba(168, 85, 247, 0.5)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'none';
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(168, 85, 247, 0.35)';
-              }}
-            >
-              ¡Empezar a invertir!
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 1. LEFT SIDEBAR */}
       <aside className="sidebar-container">

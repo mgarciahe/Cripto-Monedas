@@ -157,7 +157,6 @@ export default function Support({ session, onNavigate, userRole }: SupportProps)
     if (confirmation) {
       try {
         await logout();
-        onNavigate('welcome');
       } catch (err) {
         console.error('Error al cerrar sesión:', err);
       }

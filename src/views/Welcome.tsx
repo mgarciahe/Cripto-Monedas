@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { signInWithGoogle } from '../services/auth';
 import './Welcome.css';
 
 interface WelcomeProps {
@@ -40,6 +41,17 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
     navigator.clipboard.writeText('0x71C...8971');
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setErrorMsg(null);
+      sessionStorage.setItem('oauth_mode', 'login');
+      await signInWithGoogle();
+    } catch (err: any) {
+      console.error('Error al iniciar sesión con Google:', err);
+      setErrorMsg(err.message || 'Ocurrió un error inesperado al intentar iniciar sesión.');
+    }
   };
 
   const viewsInfo = {
@@ -146,11 +158,9 @@ export default function Welcome({ onNavigate }: WelcomeProps) {
                   </li>
                 ))}
               </ul>
-              {activeTab !== 'admin' && (
-                <button className="btn-action" onClick={() => onNavigate?.('login')}>
-                  Ir a la Vista {viewsInfo[activeTab].title}
-                </button>
-              )}
+              <button className="btn-action" onClick={() => onNavigate?.(activeTab)}>
+                Ir a la Vista {viewsInfo[activeTab].title}
+              </button>
             </div>
           </div>
         </section>

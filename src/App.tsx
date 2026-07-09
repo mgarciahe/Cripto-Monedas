@@ -20,25 +20,15 @@ function App() {
   // Valida si la sesión es legítima para iniciar sesión (evita auto-registro con Google si es nuevo)
   const validateSession = async (s: Session): Promise<boolean> => {
     const user = s.user;
+    const oauthMode = sessionStorage.getItem('oauth_mode');
     
-    // Obtener la intención desde localStorage
-    const oauthMode = localStorage.getItem('oauth_mode');
-    
-    // Solo aplicar esta guardia a usuarios que vienen de OAuth con Google
-    const isGoogleUser = user.app_metadata?.provider === 'google';
-    if (!isGoogleUser) {
-      // El usuario se registró manualmente con email/password: siempre permitir
-      localStorage.removeItem('oauth_mode');
-      return true;
-    }
-
-    // Si la cuenta de Google es nueva, created_at y last_sign_in_at tendrán la misma fecha o diferencia menor a 8s
+    // Si la cuenta es nueva, created_at y last_sign_in_at tendrán la misma fecha o diferencia menor a 8s
     const isNewUser = user.created_at && user.last_sign_in_at && 
       (new Date(user.last_sign_in_at).getTime() - new Date(user.created_at).getTime() < 8000);
 
     if (isNewUser && (oauthMode === 'login' || !oauthMode)) {
       console.warn("Usuario nuevo de Google detectado intentando ingresar en iniciar sesión. Cancelando...");
-      localStorage.removeItem('oauth_mode');
+      sessionStorage.removeItem('oauth_mode');
       
       // Cerrar sesión
       await supabase.auth.signOut();
@@ -59,7 +49,7 @@ function App() {
       return false;
     }
 
-    localStorage.removeItem('oauth_mode');
+    sessionStorage.removeItem('oauth_mode');
     return true;
   };
 

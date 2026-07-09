@@ -49,41 +49,7 @@ export async function getWalletBalances(userId: string): Promise<Billetera | nul
     throw error;
   }
 
-  // Si no existe la billetera, la creamos con el bono de bienvenida de $10,000 USD
-  if (!data) {
-    try {
-      const { data: newWallet, error: createError } = await supabase
-        .from('billeteras')
-        .insert([
-          {
-            usuario_id: userId,
-            saldo_usd: 10000.00,
-            saldo_btc: 0,
-            saldo_eth: 0,
-            saldo_sol: 0
-          }
-        ])
-        .select()
-        .maybeSingle();
-
-      if (createError || !newWallet) {
-        console.error('Error al crear billetera inicial:', createError);
-        return null;
-      }
-
-      return {
-        id: newWallet.id,
-        usuario_id: newWallet.usuario_id,
-        balance_usd: Number(newWallet.saldo_usd ?? 10000.00),
-        balance_btc: Number(newWallet.saldo_btc ?? 0),
-        balance_eth: Number(newWallet.saldo_eth ?? 0),
-        balance_sol: Number(newWallet.saldo_sol ?? 0),
-      };
-    } catch (err) {
-      console.error('Excepción al crear billetera inicial:', err);
-      return null;
-    }
-  }
+  if (!data) return null;
 
   // Mapear las columnas físicas de Supabase (saldo_usd, etc.) al modelo de datos del cliente (balance_usd, etc.)
   return {
